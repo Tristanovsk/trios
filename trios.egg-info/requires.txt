@@ -1,0 +1,8 @@
+pandas
+scipy
+numpy
+netCDF4
+matplotlib
+docopt
+GDAL
+python-dateutil
