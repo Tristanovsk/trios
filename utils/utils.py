@@ -133,13 +133,13 @@ class iwr_data:
 
         #''' interpolate Ed and Lsky data upon Lt wavelength'''
         wl = wl_Luz
-        Luz.columns = pd.MultiIndex.from_tuples(zip(['Luz'] * len(wl), wl), names=['param', 'wl'])
+        Luz.columns = pd.MultiIndex.from_tuples(list(zip(['Luz'] * len(wl), wl)), names=['param', 'wl'])
         intEd = interp1d(wl_Ed, Ed.values, fill_value='extrapolate')(wl)
         newEd = pd.DataFrame(index=Ed.index.get_level_values(0),
-                             columns=pd.MultiIndex.from_tuples(zip(['Ed'] * len(wl), wl), names=['param', 'wl']),
+                             columns=pd.MultiIndex.from_tuples(list(zip(['Ed'] * len(wl), wl)), names=['param', 'wl']),
                              data=intEd)
         intEdz = interp1d(wl_Edz, Edz.values, fill_value='extrapolate')(wl)
-        newEdz = pd.DataFrame(index=Edz.index, columns=pd.MultiIndex.from_tuples(zip(['Edz'] * len(wl), wl),
+        newEdz = pd.DataFrame(index=Edz.index, columns=pd.MultiIndex.from_tuples(list(zip(['Edz'] * len(wl), wl)),
                                                                                  names=['param', 'wl']), data=intEdz)
 
         # correct depth data for sensor to sensor distance

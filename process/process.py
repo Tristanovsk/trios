@@ -219,6 +219,11 @@ class iwr_process:
         '''simple Edz model for homogeneous water column'''
         return Ed0 * np.exp(-Kd*depth)
 
+    @staticmethod
+    def f_logEdz(depth, Kd, Ed0):
+        '''simple Edz model for homogeneous water column'''
+        return np.log(1 + iwr_process.f_Edz(depth, Kd, Ed0)) #Ed0) -Kd*depth
+
 
     def Kd(self, depth, Edz):
         Kd = np.diff(Edz) / np.diff(depth)

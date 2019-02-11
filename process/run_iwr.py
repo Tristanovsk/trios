@@ -5,6 +5,10 @@ import glob
 
 import re
 import matplotlib as mpl
+import matplotlib.pyplot as plt
+import cmocean
+
+
 import plotly
 import plotly.graph_objs as go
 
@@ -12,6 +16,14 @@ import utils.utils as u
 import utils.auxdata as ua
 
 from process.process import *
+
+
+
+class fit:
+    def __init__(self,N=0,m=2):
+
+        self.popt = np.full([N,m],np.nan)
+        self.pcov = np.full([N,m,m],np.nan)
 
 # import aeronet
 # from config import *
@@ -36,7 +48,8 @@ iopw = ua.iopw()
 iopw.load_iopw()
 irr = ua.irradiance()
 irr.load_F0()
-
+#TODO check noise values (e.g., NEI from Trios), should it be spectral?
+noise = 0.1
 idpr = '178'
 # loop over idpr
 for idpr in idprs:#[-1:]:
@@ -68,15 +81,6 @@ for idpr in idprs:#[-1:]:
         q25 = df.groupby('rounded_depth').quantile(0.25)
         q75 = df.groupby('rounded_depth').quantile(0.75)
 
-        import matplotlib.pyplot as plt
-        import cmocean
-
-
-        class fit:
-            def __init__(self,N=0,m=2):
-
-                self.popt = np.full([N,m],np.nan)
-                self.pcov = np.full([N,m,m],np.nan)
 
         N = len(wl_)
         x = mean.prof_Edz #- 0.56
@@ -90,16 +94,18 @@ for idpr in idprs:#[-1:]:
 
             y = mean.Edz.iloc[:, idx]
             sigma = std.Edz.iloc[:, idx]
+            sigma[sigma<noise]=noise
             sigma.fillna(np.inf,inplace=True)
             res.popt[idx,:], res.pcov[idx,...] = curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100], bounds=([aw, 0], [np.inf, F0]))
-            res_w.popt[idx,:], res_w.pcov[idx,...] = curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100], sigma=sigma, absolute_sigma=True, bounds=([aw, 0], [np.inf, F0]))
+            res_w.popt[idx,:], res_w.pcov[idx,...] = curve_fit(iwr_process.f_logEdz, x, np.log(1+y), [1.1 * aw, 100],  bounds=([aw, 0], [np.inf, F0]))#, sigma=sigma, absolute_sigma=True
             #res_rw.append( curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100], sigma=sigma, absolute_sigma=False, bounds=([aw, 0], [np.inf, F0])))
-
             y = median.Edz.iloc[:, idx]
             res_med.popt[idx,:], res_med.pcov[idx,...] = curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100], bounds=([aw, 0], [np.inf, F0]))
 
-
         i=0
+
+        mpl.rcParams.update({'font.size': 12})
+
         fig, axs = plt.subplots(nrows=3, ncols=3, figsize=(16, 10))
         fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.25)
         for idx in (28, 37, 51, 71, 91, 105, 130, 140, 170):
@@ -114,21 +120,21 @@ for idpr in idprs:#[-1:]:
                        c=mean.Ed.iloc[:, idx],
                        alpha=0.6, cmap=cmocean.cm.thermal, label=None
                        )
-            Ed_sim = iwr_process.f_Edz(depth_, *res[idx][0])
+            Ed_sim = iwr_process.f_Edz(depth_, *res.popt[idx,:])
             ax.plot(depth_, Ed_sim, linestyle='-', c='black', label='mean')
-            Ed_sim = iwr_process.f_Edz(depth_, *res_w[idx][0])
-            ax.plot(depth_, Ed_sim, linestyle=':', c='black', label='mean, weighted')
+            Ed_sim = iwr_process.f_Edz(depth_, *res_w.popt[idx,:])
+            ax.plot(depth_, Ed_sim, linestyle=':', c='black', label='log-space')
             #Ed_sim = iwr_process.f_Edz(depth_, *res_rw[idx][0])
             #ax.plot(depth_, Ed_sim, linestyle=':', c='red', label='mean, relativ weighted')
-            Ed_sim = iwr_process.f_Edz(depth_, *res_med[idx][0])
+            Ed_sim = iwr_process.f_Edz(depth_, *res_med.popt[idx,:])
             ax.plot(depth_, Ed_sim, linestyle='--', c='black', label='median')
 
-            # ax.semilogy()
+            ax.semilogy()
             # ax.colorbar()
             ax.set_ylabel(r'$E_d\ ({mW\cdot m^{-2}\cdot nm^{-1}})$')
             ax.set_xlabel('Depth (m)')
             ax.set_title(r'$\lambda = $' + str(round(wl_[idx], 1)) + ' nm, Kd = ' +
-                         str(round(res_w[idx][0][0], 3)) + '$m^{-1}$, Ed0 =' + str(round(res_w[idx][0][1], 1)))
+                         str(round(res_w.popt[idx,0], 3)) + '$m^{-1}$, Ed0 =' + str(round(res_w.popt[idx,1], 1)), fontsize=12)
         ax.legend(loc='best', frameon=False)
         fig.suptitle('trios_iwr ' + name + ' idpr' + idpr, fontsize=16)
         # fig.savefig(os.path.join(dirfig,'trios_iw_idpr' + idpr + '_'+name+'.png'),dpi=600)
@@ -142,28 +148,38 @@ for idpr in idprs:#[-1:]:
             ax.fill_between(x,
                     mean - std,
                     mean + std, alpha=0.35, color=c)
-        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 7))
+
+        mpl.rcParams.update({'font.size': 18})
+        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
+        fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.29)
 
         iparam = 0
         ax = axs.flat[iparam]
         y, std = res.popt[:,iparam], res.pcov[:,iparam,iparam]
         add_curve(ax, wl_, y, std, c='red', label='mean')
         y, std = res_w.popt[:,iparam], res_w.pcov[:,iparam,iparam]
-        add_curve(ax, wl_, y, std, c='black', label='mean, weighted')
+        add_curve(ax, wl_, y, std, c='orange', label='log-space')
         y, std = res_med.popt[:,iparam], res_med.pcov[:,iparam,iparam]
-        add_curve(ax, wl_, y, std, c='black', label='mean, weighted')
+        add_curve(ax, wl_, y, std, c='green', label='median')
+        ax.set_ylabel(r'$K_{d}\ ({m^{-1}})$')
+        ax.set_xlabel(r'Wavelength (nm)')
 
         iparam = 1
         ax = axs.flat[iparam]
-        y, std = res.popt[:,iparam], res.pcov[:,iparam,iparam]
+        y, std = res.popt[:,iparam], np.sqrt(res.pcov[:,iparam,iparam])
         add_curve(ax, wl_, y, std, c='red', label='mean')
-        y, std = res_w.popt[:,iparam], res_w.pcov[:,iparam,iparam]
-        add_curve(ax, wl_, y, std, c='black', label='mean, weighted')
+        y, std = res_w.popt[:,iparam], np.sqrt(res_w.pcov[:,iparam,iparam])
+        add_curve(ax, wl_, y, std, c='orange', label='log-space')
+        y, std = res_med.popt[:,iparam], np.sqrt(res_med.pcov[:,iparam,iparam])
+        add_curve(ax, wl_, y, std, c='green', label='median')
+        add_curve(ax, wl_, mean.Ed.mean(), mean.Ed.std(), c='black', label='Es')
 
-        plt.plot(wl_,res.popt[:,iparam],)
-        plt.fill_between(wl_,
-                        res.popt[:,iparam]- res.pcov[:,iparam,iparam],
-                        res.popt[:,iparam]+ res.pcov[:,iparam,iparam],alpha=0.35, color='grey')
+        ax.legend(loc='best', frameon=False)
+        ax.set_ylabel(r'$E_{d}(0^{-})\ ({mW\cdot m^{-2}\cdot nm^{-1}})$')
+        ax.set_xlabel(r'Wavelength (nm)')
+        fig.suptitle('trios_iwr ' + name + ' idpr' + idpr, fontsize=16)
+        fig.savefig(os.path.join(dirfig, 'trios_iwr_l2_idpr' + idpr + '_'+name+ '.pdf'))
+        plt.close()
 
         # fig, ax = plt.subplots()
         # N=df.Edz.shape[1]
