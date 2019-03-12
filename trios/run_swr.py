@@ -1,32 +1,30 @@
-import base64
+import os
 import pandas as pd
 import numpy as np
 import glob
-import io
-import os
-from textwrap import dedent as d
 import re
-import matplotlib.pyplot as plt
-import plotly
-import plotly.graph_objs as go
+import datetime
+
 from scipy.interpolate import interp1d
 
 from utils.sunposition import sunpos
 import utils.utils as u
 import utils.auxdata as ua
-from process.process import *
+from trios.process import *
 
 plot=False
 odir = os.path.abspath('/DATA/OBS2CO/data/trios/surface_water')
-coordf = glob.glob("/DATA/OBS2CO/data/info/mesures_in_situ.csv")[0]
-coords = pd.read_csv(coordf, sep=';')
-coords['Date_prel']=pd.to_datetime(coords['Date_prel'])
-
 dirfig = os.path.abspath('/DATA/OBS2CO/data/trios/fig')
 
-awrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/aw*idpr*.csv")
-# awrfiles = glob.glob("/DATA/OBS2CO/data/trios/test_setup/raw/aw*idpr*.csv")
 swrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/Lu0*idpr*.csv")
+
+coordf = glob.glob("/DATA/OBS2CO/data/info/mesures_in_situ_test.csv")[0]
+coords = pd.read_csv(coordf, sep=';')
+coords['Date_prel']=pd.to_datetime(coords['Date_prel'])
+coords['h_debut']=coords['Date_prel'] + pd.to_timedelta(coords['h_debut'])
+coords['h_fin']=coords['Date_prel'] + pd.to_timedelta(coords['h_fin'])
+# TODO warning: time is set as start_time + 15 minutes (can be more accurate)
+coords['Date_prel']= coords['h_debut']+datetime.timedelta(minutes = 15)
 
 iopw = ua.iopw()
 iopw.load_iopw()
@@ -53,12 +51,10 @@ for idpr in idprs:
     alt = 0  # c['Altitude']
     name = c['ID_lac'].values[0]
 
-    ofile=os.path.join(odir,'Rrs_swr_idpr'+idpr+'_'+name+'_'+date.values[0]+'.csv')
-    header = c.stack()
+    ofile=os.path.join(odir,'Rrs_swr_'+date.values[0]+'_idpr'+idpr+'_'+name+'.csv')
+    header = c.stack(dropna=False)
     header.index = header.index.droplevel()
     header.to_csv(ofile, header=None)
-
-
 
     # -----------------------------------------------
     #   SWR processing
@@ -79,6 +75,8 @@ for idpr in idprs:
         Rrs_stat = Rrs_stat.T
         Rrs_stat.to_csv(ofile,mode='a')
         if plot:
+            import matplotlib.pyplot as plt
+
             fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 8))
             fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.65)
             add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='black')

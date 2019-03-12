@@ -11,7 +11,7 @@ import plotly
 import plotly.graph_objs as go
 
 import utils.utils as u
-from process.process import *
+from trios.process import *
 
 # import aeronet
 # from config import *
@@ -83,7 +83,7 @@ for idpr in idprs:
     # iwr = u.iwr_data(idpr, iwrfiles)
     # if iwr.file:
     #     df, wl = iwr.reader(c[1], c[2], c[3])
-    #     Rrs = iwr_process(df, wl).process()
+    #     Rrs = iwr_process(df, wl).trios()
     #     dff = pd.concat([dff, Rrs], axis=1)
 
     # writing output file

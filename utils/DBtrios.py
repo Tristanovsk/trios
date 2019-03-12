@@ -58,7 +58,7 @@ def odbc2lst(conn, query):
 """ Processing """
 
 '''
-STEP 1: process TRIOS data
+STEP 1: trios TRIOS data
 '''
 
 # connect to bd TRIOS
@@ -132,7 +132,7 @@ for key in dicmeth.keys():
                     pass
 
 '''
-STEP 2: process HOBO data
+STEP 2: trios HOBO data
 '''
 
 if hobo_process:

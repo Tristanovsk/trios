@@ -1,15 +1,12 @@
-import numpy as np
 import pandas as pd
 from scipy import interpolate, integrate
-from scipy.optimize import curve_fit
 
-import plotly.plotly as py
 # import plotly.graph_objs as go
 from plotly.graph_objs import *
 
 from utils.utils import reshape as r
 import utils.auxdata as ua
-from config import *
+from trios.config import *
 
 
 class awr_process:

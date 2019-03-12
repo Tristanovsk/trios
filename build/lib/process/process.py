@@ -9,7 +9,7 @@ from plotly.graph_objs import *
 
 from utils.utils import reshape as r
 import utils.auxdata as ua
-from config import *
+from ..config import *
 
 
 class awr_process:

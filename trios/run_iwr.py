@@ -15,7 +15,7 @@ import plotly.graph_objs as go
 import utils.utils as u
 import utils.auxdata as ua
 
-from process.process import *
+from trios.process import *
 
 
 
@@ -32,13 +32,13 @@ class fit:
 # ------------------------------------------------
 # above-water data files
 dirfig = os.path.abspath('/DATA/OBS2CO/data/trios/fig')
-dirout = os.path.abspath('/DATA/OBS2CO/data/trios/in_water')
+odir = os.path.abspath('/DATA/OBS2CO/data/trios/in_water')
 
 iwrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/uw*idpr*.csv")
 
 coordf = glob.glob("/DATA/OBS2CO/data/info/mesures_in_situ.csv")[0]
 coords = pd.read_csv(coordf, sep=';')
-coords
+coords['Date_prel']=pd.to_datetime(coords['Date_prel'])
 # get idpr numbers
 idprs = np.unique([re.findall(r'idpr(\d+)', x)[0] for x in iwrfiles])
 
@@ -65,10 +65,16 @@ for idpr in idprs:#[-1:]:
     print(idpr)
     try:
         c = coords[coords.ID_prel == int(idpr)]  # .values[0]
+        date=c['Date_prel'].dt.strftime('%Y%m%d')
         lat = c['Lat'].values[0]
         lon = c['Lon'].values[0]
         alt = 0  # c['Altitude']
         name = c['ID_lac'].values[0]
+
+        ofile=os.path.join(odir,'Rrs_swr_'+date.values[0]+'_idpr'+idpr+'_'+name+'.csv')
+        header = c.stack()
+        header.index = header.index.droplevel()
+        header.to_csv(ofile, header=None)
 
         dff = pd.DataFrame()
 
@@ -81,7 +87,7 @@ for idpr in idprs:#[-1:]:
             reflectance = iwr_process(df, wl_).process()
             df = pd.concat([df, reflectance], axis=1)
 
-            df.to_csv(os.path.join(dirout, 'trios_iwr_' + name + '_idpr' + idpr + '.csv'))
+            #df.to_csv(os.path.join(odir, 'trios_iwr_' + name + '_idpr' + idpr + '.csv'))
 
         mean = df.groupby('rounded_depth').mean()
         median = df.groupby('rounded_depth').median()

@@ -12,7 +12,7 @@ import plotly.graph_objs as go
 import cmocean
 
 import utils.utils as u
-from process.process import *
+from trios.process import *
 from utils.sunposition import sunpos
 
 dir = '/DATA/OBS2CO/data/sabine/data/raw'

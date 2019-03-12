@@ -1,6 +1,6 @@
 aux
 build
-process
 simulation
+trios
 utils
 visu

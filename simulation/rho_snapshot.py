@@ -4,7 +4,7 @@ import numpy as np
 import cmocean
 import matplotlib.pyplot as plt
 
-from process.process import *
+from trios.process import *
 
 dirfig = os.path.abspath('/DATA/projet/gilerson/fig')
 awr = awr_process()

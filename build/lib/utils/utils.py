@@ -3,7 +3,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 from utils.sunposition import sunpos
-
+from trios.config import *
 
 class awr_data:
     '''
@@ -46,18 +46,23 @@ class awr_data:
         Lsky, wl_Lsky = d.load_csv(self.Lskyf)
         Lt, wl_Lt = d.load_csv(self.Ltf)
 
-        # ''' interpolate Ed and Lsky data upon Lt wavelength'''
-        wl = wl_Lt
+        # ''' interpolate Ed, Lt and Lsky data upon common wavelength'''
+        wl = wl_common
         Lt.columns = pd.MultiIndex.from_tuples(zip(['Lt'] * len(wl), wl), names=['param', 'wl'])
         intEd = interp1d(wl_Ed, Ed.values, fill_value='extrapolate')(wl)
-        newEd = pd.DataFrame(index=Ed.index,
-                             columns=pd.MultiIndex.from_tuples(zip(['Ed'] * len(wl), wl), names=['param', 'wl']),
-                             data=intEd)
+        newEd = pd.DataFrame(index=Ed.index,columns=pd.MultiIndex.from_tuples(zip(['Ed'] * len(wl), wl),
+                             names=['param', 'wl']),data=intEd)
+
+        intLt = interp1d(wl_Lt, Lt.values, fill_value='extrapolate')(wl)
+        newLt = pd.DataFrame(index=Lt.index,columns=pd.MultiIndex.from_tuples(zip(['Lt'] * len(wl), wl),
+                             names=['param', 'wl']),data=intLt)
+
         intLsky = interp1d(wl_Lsky, Lsky.values, fill_value='extrapolate')(wl)
         newLsky = pd.DataFrame(index=Lsky.index, columns=pd.MultiIndex.from_tuples(zip(['Lsky'] * len(wl), wl),
-                                                                                   names=['param', 'wl']), data=intLsky)
+                               names=['param', 'wl']), data=intLsky)
+
         # merge sensor data on time
-        df = pd.merge_asof(Lt, newEd, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
+        df = pd.merge_asof(newLt, newEd, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
                            direction="nearest")
         df = pd.merge_asof(df, newLsky, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
                            direction="nearest")
@@ -126,32 +131,36 @@ class iwr_data:
         # Edz.mask(Edz<0,inplace=True)
         # Luz.mask(Luz<0,inplace=True)
 
-
-
         # copy depth data to Ed frame on date index
         # Ed.index = Ed.index.droplevel(level=1)
 
-        #''' interpolate Ed and Lsky data upon Lt wavelength'''
-        wl = wl_Luz
+        #''' interpolate Ed, Edz and Luz data upon common wavelength'''
+        wl = wl_common
         Luz.columns = pd.MultiIndex.from_tuples(list(zip(['Luz'] * len(wl), wl)), names=['param', 'wl'])
         intEd = interp1d(wl_Ed, Ed.values, fill_value='extrapolate')(wl)
         newEd = pd.DataFrame(index=Ed.index.get_level_values(0),
                              columns=pd.MultiIndex.from_tuples(list(zip(['Ed'] * len(wl), wl)), names=['param', 'wl']),
                              data=intEd)
+
         intEdz = interp1d(wl_Edz, Edz.values, fill_value='extrapolate')(wl)
         newEdz = pd.DataFrame(index=Edz.index, columns=pd.MultiIndex.from_tuples(list(zip(['Edz'] * len(wl), wl)),
-                                                                                 names=['param', 'wl']), data=intEdz)
+                              names=['param', 'wl']), data=intEdz)
+
+        intLuz = interp1d(wl_Luz, Luz.values, fill_value='extrapolate')(wl)
+        newLuz = pd.DataFrame(index=Luz.index, columns=pd.MultiIndex.from_tuples(list(zip(['Luz'] * len(wl), wl)),
+                              names=['param', 'wl']), data=intLuz)
+
 
         # correct depth data for sensor to sensor distance
-        Luz.reset_index(level=1, inplace=True)
-        Luz.iloc[:, 0] = Luz.iloc[:, 0] + delta_Lu_depth
+        newLuz.reset_index(level=1, inplace=True)
+        newLuz.iloc[:, 0] = Luz.iloc[:, 0] + delta_Lu_depth
         # newEd.reset_index(level=1,inplace=True)
 
         newEdz.reset_index(level=1, inplace=True)
         newEdz.iloc[:, 0] = newEdz.iloc[:, 0] + delta_Edz_depth
 
         # merge sensor data on time
-        df = pd.merge_asof(Luz, newEd, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
+        df = pd.merge_asof(newLuz, newEd, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
                            direction="nearest")
         df = pd.merge_asof(df, newEdz, left_index=True, right_index=True, suffixes=('_Luz', '_Edz'),
                            tolerance=pd.Timedelta("2 seconds"),
@@ -174,7 +183,7 @@ class iwr_data:
     #
     #     dateparse = lambda x: pd.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
     #     if len(file) > 1:
-    #         print('Warning! Multiple files found but only one expected, process first file of the list:')
+    #         print('Warning! Multiple files found but only one expected, trios first file of the list:')
     #         print(file)
     #     file = file[0]
     #     df = pd.read_csv(file, sep=';', index_col=[1, 0], na_values=['-NAN'])
@@ -225,16 +234,19 @@ class swr_data:
         Ed, wl_Ed = data().load_csv(self.Edf)
         Lu0, wl_Lu0 = data().load_csv(self.Lu0f)
 
-        # ''' interpolate Ed and Lsky data upon Lt wavelength'''
-        wl = wl_Lu0
+        # ''' interpolate Ed and Lsky data upon common wavelengths'''
+        wl = wl_common
         Lu0.columns = pd.MultiIndex.from_tuples(zip(['Lu0+'] * len(wl), wl), names=['param', 'wl'])
         intEd = interp1d(wl_Ed, Ed.values, fill_value='extrapolate')(wl)
         newEd = pd.DataFrame(index=Ed.index,
                              columns=pd.MultiIndex.from_tuples(zip(['Ed'] * len(wl), wl), names=['param', 'wl']),
                              data=intEd)
+        intLu0 = interp1d(wl_Lu0, Lu0.values, fill_value='extrapolate')(wl)
+        newLu0 = pd.DataFrame(index=Lu0.index, columns=pd.MultiIndex.from_tuples(zip(['Lu0'] * len(wl), wl),
+                             names=['param', 'wl']), data=intLu0)
 
         # merge sensor data on time
-        df = pd.merge_asof(Lu0, newEd, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
+        df = pd.merge_asof(newLu0, newEd, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
                            direction="nearest")
 
         # add solar angle data and idpr
@@ -261,7 +273,7 @@ class data:
         print(file)
         dateparse = lambda x: pd.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
         if len(file) > 1:
-            print('Warning! Multiple files found but only one expected, process first file of the list:')
+            print('Warning! Multiple files found but only one expected, trios first file of the list:')
             print(file)
         file_ = file[0]
         # df = pd.read_csv(file, date_parser=dateparse, sep=';', index_col=0, na_values=['-NAN'])

@@ -1,10 +1,9 @@
 ''' modules dedicated to structure and exploit ancillary data (normally stored in aux folder)'''
 
 import pandas as pd
-import numpy as np
 from scipy.interpolate import interp1d
 
-from config import *
+from trios.config import *
 
 
 class iopw:

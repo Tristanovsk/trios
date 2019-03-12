@@ -13,7 +13,7 @@ from scipy.interpolate import interp1d
 
 from utils.sunposition import sunpos
 import utils.utils as u
-from process.process import *
+from trios.process import *
 
 
 coordf = glob.glob("/DATA/OBS2CO/data/info/mesures_in_situ.csv")[0]
