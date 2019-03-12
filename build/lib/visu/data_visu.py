@@ -13,6 +13,7 @@ import pandas as pd
 import plotly.graph_objs as go
 from dash.dependencies import Input, Output
 
+
 def main():
     app = dash.Dash()
     # app.css.append_css('data/aeronet_layout.css')
@@ -58,9 +59,9 @@ def main():
                    'width': '100%', 'display': 'inline-block',
                    }),
         html.Div([
-            html.H4('File...', id='filename',style={'float': 'left','width': '60%'}),
+            html.H4('File...', id='filename', style={'float': 'left', 'width': '60%'}),
             html.Div([
-                html.H4('Color variable:',style={'margin-bottom': '0','width':'50%'}),
+                html.H4('Color variable:', style={'margin-bottom': '0', 'width': '50%'}),
                 html.Div([
                     dcc.Dropdown(
                         id='color-column',
@@ -73,7 +74,7 @@ def main():
                     #     value='Linear',
                     #     labelStyle={'width': '25%','display': 'inline-block'})],
                 ],
-                style={'width': '50%','display': 'inline-block'})],
+                    style={'width': '50%', 'display': 'inline-block'})],
                 style={'width': '40%',
                        'margin-top': '0',
                        'display': 'inline-block',
@@ -101,8 +102,8 @@ def main():
                     value='Lt'),
             ],
                 style={'width': '48.9%',
-                       'float': 'right', }),],
-            style={'width':'100%','margin-block-start': '1%'}),
+                       'float': 'right', }), ],
+            style={'width': '100%', 'margin-block-start': '1%'}),
 
         html.Div([
             html.Div([
@@ -123,7 +124,7 @@ def main():
                        }),
         ],
 
-             style={'height': '20%'},
+            style={'height': '20%'},
             # className='row'
         ),
 
@@ -191,27 +192,26 @@ def main():
             'margin-left': 'auto',
             'margin-right': 'auto'})
 
-
     def figure_spectrum(df, column_name, color_column_name):
         dff = df
-        layout = go.Layout( xaxis={'title': 'Wavelength (nm)'},
-                            yaxis={'title': column_name},
-                            margin={'l': 50, 'b': 40, 't': 20, 'r': 50},
-                            hovermode='closest',
-                            height=300,
-                            font=dict(color='#CCCCCC'),
-                            titlefont=dict(color='#CCCCCC', size=14),
-                            plot_bgcolor="#191A1A",
-                            paper_bgcolor="#020202")
+        layout = go.Layout(xaxis={'title': 'Wavelength (nm)'},
+                           yaxis={'title': column_name},
+                           margin={'l': 50, 'b': 40, 't': 20, 'r': 50},
+                           hovermode='closest',
+                           height=300,
+                           font=dict(color='#CCCCCC'),
+                           titlefont=dict(color='#CCCCCC', size=14),
+                           plot_bgcolor="#191A1A",
+                           paper_bgcolor="#020202")
 
-        if not(column_name in dff.columns.get_level_values(0)):
-            return  {'data': [],
-                     'layout': layout}
+        if not (column_name in dff.columns.get_level_values(0)):
+            return {'data': [],
+                    'layout': layout}
 
         parameters = df.loc[:, (color_column_name)].values
         dff = dff.loc[:, ([column_name])]
         wl = dff.columns.droplevel().values
-        dff = dff.stack(level=['wl'])
+        #dff = dff.stack(level=['wl'])
         norm = mpl.colors.Normalize(vmin=np.nanmin(parameters), vmax=np.nanmax(parameters))
         # create a ScalarMappable and initialize a data structure
         cmap = cm.Spectral
@@ -219,11 +219,14 @@ def main():
         s_m.set_array([])
         i = 0
         trace = []
-        for date, x in dff.groupby(level=0):
+        #for date, x_ in dff.groupby(level=0):
+        for idx, x in dff.iterrows():
+            date = x.name.__str__()
+            #print(idx,x)
             trace.append(go.Scattergl(
                 x=wl,  # spectrum,
-                y=x[column_name].values.flatten(),
-                text=dff.index.get_level_values(0),
+                y=x[column_name],
+                text=date,#str(parameters[i]),#dff.index.get_level_values(0),
                 name=str(parameters[i]),
                 mode='lines',
                 marker={
@@ -244,7 +247,6 @@ def main():
             'layout': layout
         }
 
-
     def list_data(contents, level=0):
         # content_type, content_string = contents.split(',')
         # decoded = base64.b64decode(content_string)
@@ -253,6 +255,7 @@ def main():
         # remove useless variables
         c = c.drop(filter(lambda s: re.match('.*(Wave|Tri|[sS]ite|Dat)', s), c))
         return [{'label': i, 'value': i} for i in c]
+
     #
     def parse_contents(contents):
         global df
@@ -275,7 +278,6 @@ def main():
         parse_contents(contents)
         return contents
 
-
     @app.callback(Output('filename', 'children'),
                   [Input('upload-data', 'filename')])
     def show_filename(filename):
@@ -289,68 +291,59 @@ def main():
     def update_dropdown(contents):
         return list_data(contents)
 
-
     @app.callback(Output('spectrum1', 'options'),
                   [Input('dataset', 'children')])
     def update_dropdown(contents):
         return list_data(contents, level=0)
-
 
     @app.callback(Output('spectrum2', 'options'),
                   [Input('dataset', 'children')])
     def update_dropdown(contents):
         return list_data(contents, level=0)
 
-
     @app.callback(Output('spectrum3', 'options'),
                   [Input('dataset', 'children')])
     def update_dropdown(contents):
         return list_data(contents, level=0)
-
 
     @app.callback(Output('spectrum4', 'options'),
                   [Input('dataset', 'children')])
     def update_dropdown(contents):
         return list_data(contents, level=0)
 
-
     # selection from time series graph -> spectrum graph
     @app.callback(Output('graph1', 'figure'),
                   [Input('spectrum1', 'value'),
                    Input('color-column', 'value'),
                    Input('dataset', 'children')])
-    def spectrum_figure(column_name, color_column_name,void):
+    def spectrum_figure(column_name, color_column_name, void):
         return figure_spectrum(df, column_name, color_column_name)
-
 
     # selection from time series graph -> spectrum graph
     @app.callback(Output('graph2', 'figure'),
                   [Input('spectrum2', 'value'),
                    Input('color-column', 'value'),
                    Input('dataset', 'children')])
-    def spectrum_figure(column_name, color_column_name,void):
+    def spectrum_figure(column_name, color_column_name, void):
         return figure_spectrum(df, column_name, color_column_name)
-
 
     @app.callback(Output('graph3', 'figure'),
                   [Input('spectrum3', 'value'),
                    Input('color-column', 'value'),
                    Input('dataset', 'children')])
-    def spectrum_figure(column_name, color_column_name,void):
+    def spectrum_figure(column_name, color_column_name, void):
         return figure_spectrum(df, column_name, color_column_name)
-
 
     # selection from time series graph -> spectrum graph
     @app.callback(Output('graph4', 'figure'),
                   [Input('spectrum4', 'value'),
                    Input('color-column', 'value'),
                    Input('dataset', 'children')])
-    def spectrum_figure(column_name, color_column_name,void):
+    def spectrum_figure(column_name, color_column_name, void):
         return figure_spectrum(df, column_name, color_column_name)
-
 
     app.run_server(port=8060)
 
+
 if __name__ == "__main__":
     main()
-

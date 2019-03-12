@@ -71,7 +71,7 @@ fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.65)
 i=0
 for azi, Lt1 in Lt0.groupby(level=2):
     for vza,Lt in Lt1.groupby(level=1):
-        ax=axs.flat[i]
+        ax = axs.flat[i]
         i=i+1
         print(azi,vza)
 

@@ -32,7 +32,7 @@ class fit:
 # ------------------------------------------------
 # above-water data files
 dirfig = os.path.abspath('/DATA/OBS2CO/data/trios/fig')
-dirout = os.path.abspath('/DATA/OBS2CO/data/trios/above_water')
+dirout = os.path.abspath('/DATA/OBS2CO/data/trios/in_water')
 
 iwrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/uw*idpr*.csv")
 
@@ -41,6 +41,14 @@ coords = pd.read_csv(coordf, sep=';')
 coords
 # get idpr numbers
 idprs = np.unique([re.findall(r'idpr(\d+)', x)[0] for x in iwrfiles])
+
+
+def add_curve(ax, x, mean, std, c='red', label=''):
+    ax.plot(x, mean, linestyle='solid', c=c, lw=2.5,
+            alpha=0.8, label=label)
+    ax.fill_between(x,
+                    mean - std,
+                    mean + std, alpha=0.35, color=c)
 
 ################
 # load aux data
@@ -142,12 +150,6 @@ for idpr in idprs:#[-1:]:
         plt.close()
 
 
-        def add_curve(ax, x, mean, std, c='red', label=''):
-            ax.plot(x, mean, linestyle='solid', c=c, lw=2.5,
-            alpha=0.8, label=label)
-            ax.fill_between(x,
-                    mean - std,
-                    mean + std, alpha=0.35, color=c)
 
         mpl.rcParams.update({'font.size': 18})
         fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))

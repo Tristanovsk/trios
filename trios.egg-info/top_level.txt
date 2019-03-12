@@ -1,3 +1,5 @@
+aux
+build
 process
 simulation
 utils

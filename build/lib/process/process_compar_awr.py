@@ -13,6 +13,7 @@ from scipy.interpolate import interp1d
 
 from utils.sunposition import sunpos
 import utils.utils as u
+import utils.auxdata as ua
 from process.process import *
 
 coordf = glob.glob("/DATA/OBS2CO/data/info/mesures_in_situ.csv")[0]
@@ -23,6 +24,8 @@ awrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/aw*idpr*.csv")
 # awrfiles = glob.glob("/DATA/OBS2CO/data/trios/test_setup/raw/aw*idpr*.csv")
 swrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/Lu0*idpr*.csv")
 
+iopw = ua.iopw()
+iopw.load_iopw()
 
 def add_curve(ax, x, mean, std, c='red', label=''):
     ax.plot(x, mean, linestyle='solid', c=c, lw=2.5,
@@ -36,7 +39,7 @@ idpr = '167'
 
 # get idpr numbers
 idprs = np.unique([re.findall(r'idpr(\d+)', x)[0] for x in swrfiles])
-idprs = np.array(['156'])
+#idprs = np.array(['170'])
 # loop over idpr
 for idpr in idprs:
     c = coords[coords.ID_prel == int(idpr)]  # .values[0]
@@ -52,23 +55,29 @@ for idpr in idprs:
     #   SWR processing
     # -----------------------------------------------
 
-    swr = u.swr_data(idpr, swrfiles)
-    if swr.file:
-        df, wl_swr = swr.reader(lat, lon, alt)
-        Rrs_swr = swr_process(df, wl_swr).process()
-    add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='black')
-
+    uswr = u.swr_data(idpr, swrfiles)
+    if uswr.file:
+        df, wl_swr = uswr.reader(lat, lon, alt)
+        df['sza', ''] = np.nan
+        for index, row in df.iterrows():
+            # print index
+            sza = sunpos(index, lat, lon, alt)[1]
+            df.at[index, 'sza'] = sza
+        swr = swr_process(df, wl_swr)
+        Rrs_swr = swr.call_process()
+        add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='black')
+        Rrs_swr = swr.call_process(shade_corr=True)
+        add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='red')
 
     # -----------------------------------------------
     #   AWR processing
     # -----------------------------------------------
+    azi = 135
+    vza = 40
     awr = u.awr_data(idpr, awrfiles)
     if awr.Edf:
 
-
         index_idx = [0]
-        azi = 135
-        vza = 40
 
         d = u.data(index_idx)
         Ed, wl_Ed = d.load_csv(awr.Edf)
@@ -115,9 +124,9 @@ for idpr in idprs:
             sza = sunpos(index, lat, lon, alt)[1]
             df.at[index, 'sza'] = sza
 
-        rho_h = awr.get_rho_values([df.sza.min()], [vza], [azi], wl=wl)
-        rho15 = awr.get_rho_mobley(awr.rhoM2015, [df.sza.min()], [vza], [azi], [ws])
-        rho99 = awr.get_rho_mobley(awr.rhoM1999, [df.sza.min()], [vza], [azi], [ws])
+        rho_h = awr.get_rho_values([df.sza.mean()], [vza], [azi], wl=wl)
+        rho15 = awr.get_rho_mobley(awr.rhoM2015, [df.sza.mean()], [vza], [azi], [ws])
+        rho99 = awr.get_rho_mobley(awr.rhoM1999, [df.sza.mean()], [vza], [azi], [ws])
 
         Rrs_h = (df.loc[:, 'Lt'] - rho_h * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
         Rrs15 = (df.loc[:, 'Lt'] - rho15 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
@@ -125,12 +134,14 @@ for idpr in idprs:
         Rrs99 = (df.loc[:, 'Lt'] - rho99 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
         # plt.figure()
 
-        add_curve(ax, wl, Rrs15.transpose().mean(axis=1), Rrs15.transpose().std(axis=1), label='M2015')
-        add_curve(ax, wl, Rrs99.transpose().mean(axis=1), Rrs99.transpose().std(axis=1), c='orange', label='M1999')
-        add_curve(ax, wl, Rrs_h.transpose().mean(axis=1), Rrs_h.transpose().std(axis=1), c='grey', label='h')
+        add_curve(ax, wl, Rrs15.transpose().mean(axis=1), Rrs15.transpose().std(axis=1),
+                  label='M2015 (' + str(rho15) + ')')
+        add_curve(ax, wl, Rrs99.transpose().mean(axis=1), Rrs99.transpose().std(axis=1), c='orange',
+                  label='M1999(' + str(rho99) + ')')
+        add_curve(ax, wl, Rrs_h.transpose().mean(axis=1), Rrs_h.transpose().std(axis=1), c='grey',
+                  label='h(' + str(rho_h.mean()) + ')')
 
-
-    ax.set_title('azi=' + str(azi) + ', vza=' + str(vza)+', sza='+str(sza))
+    ax.set_title('azi=' + str(azi) + ', vza=' + str(vza) + ', sza=' + str(sza))
 
     ax.legend(loc='best', frameon=False)
 
@@ -138,4 +149,4 @@ for idpr in idprs:
     ax.set_xlabel(r'Wavelength (nm)')
     fig.savefig(os.path.join(dirfig, 'trios_awr_' + name + '_idpr' + idpr + '.png'))
     plt.close()
-    Lt.index.names
+

@@ -19,7 +19,7 @@ setup(
     author_email='tristan.harmel@ntymail.com',
     description='Package to help process TriOS radiometer data for various above-water or in-water setups',
     # TODO update Dependent packages (distributions)
-    install_requires=['pandas', 'scipy', 'numpy', 'netCDF4', 'matplotlib', 'docopt', 'GDAL', 'python-dateutil'],
+    install_requires=['dash','dash_core_components','dash_html_components','pandas', 'scipy', 'numpy', 'netCDF4', 'matplotlib', 'docopt', 'GDAL', 'python-dateutil'],
 
     entry_points={
         'console_scripts': [

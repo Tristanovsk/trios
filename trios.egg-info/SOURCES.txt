@@ -1,9 +1,13 @@
 README.md
 setup.py
+aux/__init__.py
+aux/sensors_spec.py
 process/__init__.py
 process/process.py
 process/process_compar_awr.py
+process/process_sabine.py
 process/process_test_setup.py
+process/run_iwr.py
 simulation/__init__.py
 simulation/rho_snapshot.py
 trios.egg-info/PKG-INFO
@@ -12,8 +16,10 @@ trios.egg-info/dependency_links.txt
 trios.egg-info/entry_points.txt
 trios.egg-info/requires.txt
 trios.egg-info/top_level.txt
+utils/DBtrios.py
 utils/DButils.py
 utils/__init__.py
+utils/auxdata.py
 utils/format_info4acix.py
 utils/sunposition.py
 utils/utils.py
