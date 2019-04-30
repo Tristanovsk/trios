@@ -12,8 +12,9 @@ import utils.utils as u
 import utils.auxdata as ua
 from trios.process import *
 
+plot=True #False
 odir = os.path.abspath('/DATA/OBS2CO/data/trios/above_water')
-dirfig = os.path.abspath('/DATA/OBS2CO/data/trios/fig')
+dirfig = os.path.join(odir,'fig')
 
 awrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/aw*idpr*.csv")
 
@@ -110,13 +111,35 @@ for idpr in idprs:
         Rrs_stat = Rrs_stat.T
         Rrs_stat.to_csv(ofile,mode='a')
 
-        #-------------------------------
-        # for Mobley values :
-        # rho15 = awr.get_rho_mobley(awr.rhoM2015, [df.sza.mean()], [vza], [azi], [ws])[0]
-        # rho99 = awr.get_rho_mobley(awr.rhoM1999, [df.sza.mean()], [vza], [azi], [ws])[0]
-        #
-        # Rrs15 = (df.loc[:, 'Lt'] - rho15 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
-        # Rrs99 = (df.loc[:, 'Lt'] - rho99 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
+        if plot:
+            import matplotlib.pyplot as plt
+            plt.rcParams.update({'font.size': 18})
+            # -------------------------------
+            # for Mobley values :
+            rho15 = awr.get_rho_mobley(awr.rhoM2015, [df.sza.mean()], [vza], [azi], [ws])[0]
+            rho99 = awr.get_rho_mobley(awr.rhoM1999, [df.sza.mean()], [vza], [azi], [ws])[0]
+
+            Rrs15 = (df.loc[:, 'Lt'] - rho15 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
+            Rrs99 = (df.loc[:, 'Lt'] - rho99 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
+
+            fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 8))
+            fig.subplots_adjust(left=0.16, right=0.9, hspace=.5, wspace=0.65)
+            add_curve(ax, wl, Rrs15.transpose().mean(axis=1), Rrs15.transpose().std(axis=1),
+                  label='M2015 (' + str('%.4f' %rho15) + ')')
+            add_curve(ax, wl, Rrs99.transpose().mean(axis=1), Rrs99.transpose().std(axis=1), c='orange',
+                  label='M1999(' + str('%.4f' %rho99) + ')')
+            add_curve(ax, wl, Rrs_h.transpose().mean(axis=1), Rrs_h.transpose().std(axis=1), c='grey',
+                  label='h(' + str('%.4f' %rho_h.mean()) + ')')
+            info = str(header.Meteo_obs)+' / '+str(header.TRIOS_obs)
+            info = info.replace('nan','')
+            ax.set_title(info+'\n azi=' + str(azi) + ', vza=' + str(vza) + ', sza=' + str('%.2f' %sza))
+
+            ax.legend(loc='best', frameon=False)
+            ax.set_ylabel(r'$R_{rs}\  (sr^{-1})$')
+            ax.set_xlabel(r'$Wavelength (nm)$')
+            fig.savefig(os.path.join(dirfig, 'trios_awr_'+date.values[0]+'_'+ name + '_idpr' + idpr + '.png'))
+            plt.close()
+
 
 
 

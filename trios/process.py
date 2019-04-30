@@ -139,8 +139,8 @@ class swr_process:
         # TODO add particulate and dissolved component to a and bb values
         # a,bb = aux.get_iop(..., withwater=True)
         acdom = ua.cdom(0.5, wl).get_acdom()
-        a = a + acdom + 0.4
-        bb = bb + 0.05
+        a = a + acdom
+        bb = bb
         if shade_corr:
             Rrs = self.shade_corr(Rrs, R, ang_w, a, bb, wl)
         # Rrs.columns = pd.MultiIndex.from_product([['Rrs(swr)'], Rrs.columns], names=['param', 'wl'])

@@ -12,9 +12,9 @@ import utils.utils as u
 import utils.auxdata as ua
 from trios.process import *
 
-plot=False
+plot=True #False
 odir = os.path.abspath('/DATA/OBS2CO/data/trios/surface_water')
-dirfig = os.path.abspath('/DATA/OBS2CO/data/trios/fig')
+dirfig = os.path.join(odir,'fig')
 
 swrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/Lu0*idpr*.csv")
 
@@ -76,9 +76,14 @@ for idpr in idprs:
         Rrs_stat.to_csv(ofile,mode='a')
         if plot:
             import matplotlib.pyplot as plt
-
+            plt.rcParams.update({'font.size': 18})
             fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 8))
-            fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.65)
+            fig.subplots_adjust(left=0.16, right=0.9, hspace=.5, wspace=0.65)
             add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='black')
             Rrs_swr = swr.call_process(shade_corr=True)
             add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='red')
+            ax.legend(loc='best', frameon=False)
+            ax.set_ylabel(r'$R_{rs}\  (sr^{-1})$')
+            ax.set_xlabel(r'$Wavelength (nm)$')
+            fig.savefig(os.path.join(dirfig, 'trios_swr_'+date.values[0]+'_'+ name + '_idpr' + idpr + '.png'))
+            plt.close()
