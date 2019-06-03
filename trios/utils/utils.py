@@ -1,7 +1,7 @@
 import pandas as pd
 from scipy.interpolate import interp1d
 
-from utils.sunposition import sunpos
+from trios.utils.sunposition import sunpos
 from trios.config import *
 
 class awr_data:
@@ -302,5 +302,5 @@ class reshape:
         shape = list(map(len, df.index.levels))
         arr = np.full(shape, np.nan)
         # fill it using Numpy's advanced indexing
-        arr[tuple(df.index.labels)] = df[name].values.flat
+        arr[tuple(df.index.codes)] = df[name].values.flat
         return arr

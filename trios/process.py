@@ -1,11 +1,11 @@
 import pandas as pd
 from scipy import interpolate, integrate
+import scipy.optimize as so
 
-# import plotly.graph_objs as go
-from plotly.graph_objs import *
+import plotly.graph_objs as go
 
-from utils.utils import reshape as r
-import utils.auxdata as ua
+from trios.utils.utils import reshape as r
+import trios.utils.auxdata as ua
 from trios.config import *
 
 
@@ -81,18 +81,71 @@ class awr_process:
         rho_mobley = calc().spline_4d(grid, rho_, (ws, sza, vza, azi))
         return rho_mobley
 
-    def call_process(self, vza=[40], azi=[135], ws=2, aot=0.1):
-        wl = self.wl
-        Lt = self.df.loc[:, ("Lt")]
-        Lsky = self.df.loc[:, ("Lsky")]
-        Ed = self.df.loc[:, ("Ed")]
-        sza = self.df.loc[:, ("sza")].values.mean()
-        Rrs = self.process(wl, Lt, Lsky, Ed, sza, vza, azi, ws, aot)
-        Rrs.columns = pd.MultiIndex.from_product([['Rrs(awr)'], self.Rrs.columns], names=['param', 'wl'])
-        self.Rrs = Rrs
-        return self.Rrs
+    # def call_process(self, vza=[40], azi=[135], ws=2, aot=0.1):
+    #     wl = self.wl
+    #     Lt = self.df.loc[:, ("Lt")]
+    #     Lsky = self.df.loc[:, ("Lsky")]
+    #     Ed = self.df.loc[:, ("Ed")]
+    #     sza = self.df.loc[:, ("sza")].values.mean()
+    #     Rrs = self.process(wl, Lt, Lsky, Ed, sza, vza, azi, ws, aot)
+    #     Rrs.columns = pd.MultiIndex.from_product([['Rrs(awr)'], self.Rrs.columns], names=['param', 'wl'])
+    #     self.Rrs = Rrs
+    #     return self.Rrs
+    #
+    # def process(self, wl, Lt, Lsky, Ed, sza, vza=[40], azi=[135], ws=[2], aot=[0.1]):
+    #     '''
+    #
+    #     :param wl:
+    #     :param Lt:
+    #     :param Lsky:
+    #     :param Ed:
+    #     :param sza:
+    #     :param vza:
+    #     :param azi:
+    #     :param ws:
+    #     :param aot:
+    #     :return:
+    #     '''
+    #
+    #     # ------------------
+    #     # filtering
+    #     # ------------------
+    #     ind_Ed, notused = calc.spectra_median_filter(Ed)
+    #     ind_sky, notused = calc.spectra_median_filter(Lsky)
+    #     ind = ind_Ed & ind_sky
+    #     Lt, Lsky, Ed, sza = Lt[ind], Lsky[ind], Ed[ind], sza[ind]
+    #
+    #     rho = self.get_rho_values(np.median(sza), vza, azi, wl=wl, ws=ws, aot=aot)
+    #     self.Rrs = (Lt - rho * Lsky.values) / Ed.values
+    #     self.Rrs.columns = pd.MultiIndex.from_product([['Rrs(awr)'], wl], names=['param', 'wl'])
+    #     return self.Rrs, rho
 
-    def process(self, wl, Lt, Lsky, Ed, sza, vza=[40], azi=[135], ws=[2], aot=[0.1]):
+    @staticmethod
+    def filtering(Lt, Lsky, Ed, **kargs):
+        '''
+
+        :param Lt:
+        :param Lsky:
+        :param Ed:
+        :param kargs:
+        :return:
+        '''
+
+        ind_Ed, notused = calc.spectra_median_filter(Ed, kargs)
+        ind_sky, notused = calc.spectra_median_filter(Lsky, kargs)
+        ind = ind_Ed & ind_sky
+        return ind
+
+    def process_wrapper(self, wl, df, sza, vza=[40], azi=[135], ws=[2], aot=[0.1], method='M99'):
+
+        print(sza, vza, azi, ws, aot, method)
+        Rrs, rho = self.process(wl, df.Lt, df.Lsky.values, df.Ed.values, sza, vza, azi, ws, aot, method)
+
+        Rrs.columns = pd.MultiIndex.from_product([['Rrs'], wl], names=['param', 'wl'])
+
+        return Rrs, rho
+
+    def process(self, wl, Lt, Lsky, Ed, sza, vza=[40], azi=[135], ws=[2], aot=[0.1], method='M99'):
         '''
 
         :param wl:
@@ -104,13 +157,74 @@ class awr_process:
         :param azi:
         :param ws:
         :param aot:
+        :param method: 'M99, 'M15, 'osoaa'
         :return:
         '''
 
-        rho = self.get_rho_values([sza], vza, azi, wl=wl, ws=ws, aot=aot)
-        self.Rrs = (Lt - rho * Lsky) / Ed
+        # -----------------------------
+        # standard data processing
+        # -----------------------------
 
-        return self.Rrs, rho
+        if method == 'osoaa':
+            rho = self.get_rho_values(np.median(sza), vza, azi, wl=wl, ws=ws, aot=aot)
+        elif method == 'M99':
+            rho = self.get_rho_mobley(self.rhoM1999, [np.median(sza)], [vza], [azi], [ws])
+        elif method == 'M15':
+            rho = self.get_rho_mobley(self.rhoM2015, [np.median(sza)], [vza], [azi], [ws])
+        else:
+            return print('ERROR: no method for rho factor')
+
+        self.Rrs = (Lt - rho * Lsky) / Ed
+        # Rrs.columns = pd.MultiIndex.from_product([['Rrs'], wl], names=['param', 'wl'])
+
+        return self.Rrs, rho.mean()
+
+    def cost_func(self, x, param, meas, Rrs_bar):
+        sza, vza, azi = param
+        Lt, Lsky, Ed = meas
+        ws = x
+
+        rho = self.get_rho_mobley(self.rhoM1999, [sza], [vza], [azi], [ws])
+
+        Rrs = (Lt - rho * Lsky) / Ed
+
+        return Rrs - Rrs_bar
+
+        # x_ave = x.mean()
+        # return np.sum(np.abs(x - x_ave))
+
+    def process_optimization(self, wl, Lt, Lsky, Ed, sza, vza=[40], azi=[135], ws=[2], aot=[0.1], method='M99'):
+
+        # ------------------------------
+        # initialization of mean/median values
+        # ------------------------------
+        Rrs, rho = self.process(wl, Lt, Lsky, Ed, sza, ws=ws, azi=azi)
+        Rrs_bar = Rrs.mean(axis=0)
+
+        # -----------------------------
+        # non-linear optimization
+        # -----------------------------
+
+        for j in range(10):
+            x_est = []
+            res = []
+            Rrs_est = []
+            rho_est = []
+
+            for i in range(len(Lt)):
+                geom = [sza[i], vza, azi]
+                meas = [Lt[i], Lsky[i], Ed[i]]
+                x0 = ws
+                res_lsq = so.least_squares(self.cost_func, x0, args=(geom, meas, Rrs_bar))
+                res.append(res_lsq)
+                x_est.append(res_lsq.x[0])
+                Rrs, rho = self.process(wl, Lt[i], Lsky[i], Ed[i], sza[i], ws=res_lsq.x[0], azi=azi)
+                Rrs_est.append(Rrs)
+                rho_est.append(rho)
+                print(res_lsq.x, res_lsq.cost)
+            Rrs_bar = np.mean(Rrs_est, axis=0)
+            Rrs_std = np.std(Rrs_est, axis=0)
+        return Rrs_bar, Rrs_std
 
 
 class swr_process:
@@ -209,24 +323,25 @@ class iwr_process:
         df['rounded_depth', ''] = df.prof_Edz.round(1)
         df.groupby('rounded_depth').mean()
 
+        # TODO add central part of run_iwr.py here
+
         return self.reflectance
 
     @staticmethod
     def f_Edz(depth, Kd, Ed0):
         '''simple Edz model for homogeneous water column'''
-        return Ed0 * np.exp(-Kd*depth)
+        return Ed0 * np.exp(-Kd * depth)
 
     @staticmethod
     def f_logEdz(depth, Kd, Ed0):
         '''simple Edz model for homogeneous water column'''
-        return np.log(1 + iwr_process.f_Edz(depth, Kd, Ed0)) #Ed0) -Kd*depth
-
+        return np.log(1 + iwr_process.f_Edz(depth, Kd, Ed0))  # Ed0) -Kd*depth
 
     def Kd(self, depth, Edz):
         Kd = np.diff(Edz) / np.diff(depth)
 
-    def plot_raw(self,x='Luz',y='prof_Luz'):
-        trace = Scattergl(
+    def plot_raw(self, x='Luz', y='prof_Luz'):
+        trace = go.Scattergl(
             x=self.df[x].values,
             y=self.df[y].values,
 
@@ -249,7 +364,7 @@ class iwr_process:
 
         )
 
-        layout = Layout(
+        layout = go.Layout(
             height=450,
             xaxis=dict(
                 range=[0, 200],
@@ -269,14 +384,14 @@ class iwr_process:
                 zeroline=False,
                 # nticks=max(6, round(df['Speed'].iloc[-1]/10))
             ),
-            margin=Margin(
+            margin=go.Margin(
                 t=45,
                 l=50,
                 r=50
             )
         )
 
-        return Figure(data=[trace], layout=layout)
+        return go.Figure(data=[trace], layout=layout)
 
 
 class self_shading:
@@ -322,7 +437,7 @@ class calc:
         wl = wl[idx_par]
         Ed = Ed[idx_par]
         par = integrate.trapz(Ed, wl)
-        par_quanta = integrate.trapz(np.multiply(wl,Ed), wl) / hc
+        par_quanta = integrate.trapz(np.multiply(wl, Ed), wl) / hc
         return par, par_quanta
 
     def earth_sun_correction(self, dayofyear):
@@ -351,6 +466,19 @@ class calc:
         :return: sub-surface angle in deg
         '''
         return np.degrees(np.arcsin(np.sin(np.radians(angle_air)) / n))
+
+    @staticmethod
+    def spectra_median_filter(spectra, threshold=0.1):
+        '''
+        
+        :param series: pandas object
+        :param threshold: relative value of median 
+        :return: boolean indices, array of data within interval median +/- threshold
+        '''
+        spec = spectra.sum(axis=1)
+        med = spec.median()
+        ind = np.abs(1 - spec / med) < 0.1
+        return ind, spectra[ind]
 
     def spline_2d(self, gin, arr, gout):
         '''
@@ -397,15 +525,18 @@ class calc:
 
         for i in range(N[0]):
             for j in range(N[1]):
-                tmp[i, j, :] = interpolate.RectBivariateSpline(gin[2], gin[3], lut[i, j, :, :])(gout[2], gout[3], grid=False)
+                tmp[i, j, :] = interpolate.RectBivariateSpline(gin[2], gin[3], lut[i, j, :, :])(gout[2], gout[3],
+                                                                                                grid=False)
         if Nout[0] == Nout[1] == 1:
             interp = np.ndarray(Nout[2])
             for iband in range(Nout[2]):
-                interp[iband] = interpolate.RectBivariateSpline(gin[0], gin[1], tmp[:, :, iband])(gout[0], gout[1], grid=False)
+                interp[iband] = interpolate.RectBivariateSpline(gin[0], gin[1], tmp[:, :, iband])(gout[0], gout[1],
+                                                                                                  grid=False)
         else:
             interp = np.ndarray([Nout[0], Nout[1], Nout[2]])
             for iband in range(Nout[2]):
-                interp[:, :, iband] = interpolate.RectBivariateSpline(gin[0], gin[1], tmp[:, :, iband])(gout[0], gout[1],
-                                                                                               grid=True)
+                interp[:, :, iband] = interpolate.RectBivariateSpline(gin[0], gin[1], tmp[:, :, iband])(gout[0],
+                                                                                                        gout[1],
+                                                                                                        grid=True)
 
         return interp

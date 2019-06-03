@@ -1,19 +1,10 @@
-import base64
-import pandas as pd
-import numpy as np
 import glob
-import io
-import os
-from textwrap import dedent as d
 import re
 import matplotlib.pyplot as plt
-import plotly
-import plotly.graph_objs as go
 from scipy.interpolate import interp1d
 
-from utils.sunposition import sunpos
-import utils.utils as u
-import utils.auxdata as ua
+from trios.utils.sunposition import sunpos
+from trios.utils import utils as u
 from trios.process import *
 
 coordf = glob.glob("/DATA/OBS2CO/data/info/mesures_in_situ.csv")[0]

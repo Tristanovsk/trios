@@ -5,12 +5,12 @@ setup(
     name='trios',
     version=__version__,
     packages=find_packages(exclude=['build']),
-    package_data={'': ['*.so']},
+    package_data={'': ['*.so'],
     #     # If any package contains *.txt files, include them:
     #     '': ['*.txt'],
     #     'lut': ['data/lut/*.nc'],
-    #     'aux': ['data/aux/*']
-    # },
+    #     'aux': ['aux/*']
+     },
     include_package_data=True,
 
     url='https://gitlab.irstea.fr/ETL-TELQUEL/etl/tree/dev/preprocessing/trios',

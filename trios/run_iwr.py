@@ -2,28 +2,22 @@ import os, sys
 import pandas as pd
 import numpy as np
 import glob
-
 import re
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import cmocean
-
-
 import plotly
 import plotly.graph_objs as go
-
-import utils.utils as u
-import utils.auxdata as ua
-
+import trios.utils.utils as u
+import trios.utils.auxdata as ua
 from trios.process import *
 
 
-
 class fit:
-    def __init__(self,N=0,m=2):
+    def __init__(self, N=0, m=2):
+        self.popt = np.full([N, m], np.nan)
+        self.pcov = np.full([N, m, m], np.nan)
 
-        self.popt = np.full([N,m],np.nan)
-        self.pcov = np.full([N,m,m],np.nan)
 
 # import aeronet
 # from config import *
@@ -38,7 +32,7 @@ iwrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/uw*idpr*.csv")
 
 coordf = glob.glob("/DATA/OBS2CO/data/info/mesures_in_situ.csv")[0]
 coords = pd.read_csv(coordf, sep=';')
-coords['Date_prel']=pd.to_datetime(coords['Date_prel'])
+coords['Date_prel'] = pd.to_datetime(coords['Date_prel'])
 # get idpr numbers
 idprs = np.unique([re.findall(r'idpr(\d+)', x)[0] for x in iwrfiles])
 
@@ -50,28 +44,29 @@ def add_curve(ax, x, mean, std, c='red', label=''):
                     mean - std,
                     mean + std, alpha=0.35, color=c)
 
+
 ################
 # load aux data
 iopw = ua.iopw()
 iopw.load_iopw()
 irr = ua.irradiance()
 irr.load_F0()
-#TODO check noise values (e.g., NEI from Trios), should it be spectral?
+# TODO check noise values (e.g., NEI from Trios), should it be spectral?
 noise = 0.1
 idpr = '178'
 # loop over idpr
-for idpr in idprs:#[-1:]:
+for idpr in idprs:  # [-1:]:
     #    idpr=idprs[2]
     print(idpr)
     try:
         c = coords[coords.ID_prel == int(idpr)]  # .values[0]
-        date=c['Date_prel'].dt.strftime('%Y%m%d')
+        date = c['Date_prel'].dt.strftime('%Y%m%d')
         lat = c['Lat'].values[0]
         lon = c['Lon'].values[0]
         alt = 0  # c['Altitude']
         name = c['ID_lac'].values[0]
 
-        ofile=os.path.join(odir,'Rrs_swr_'+date.values[0]+'_idpr'+idpr+'_'+name+'.csv')
+        ofile = os.path.join(odir, 'Rrs_swr_' + date.values[0] + '_idpr' + idpr + '_' + name + '.csv')
         header = c.stack()
         header.index = header.index.droplevel()
         header.to_csv(ofile, header=None)
@@ -87,7 +82,7 @@ for idpr in idprs:#[-1:]:
             reflectance = iwr_process(df, wl_).process()
             df = pd.concat([df, reflectance], axis=1)
 
-            #df.to_csv(os.path.join(odir, 'trios_iwr_' + name + '_idpr' + idpr + '.csv'))
+            # df.to_csv(os.path.join(odir, 'trios_iwr_' + name + '_idpr' + idpr + '.csv'))
 
         mean = df.groupby('rounded_depth').mean()
         median = df.groupby('rounded_depth').median()
@@ -95,12 +90,11 @@ for idpr in idprs:#[-1:]:
         q25 = df.groupby('rounded_depth').quantile(0.25)
         q75 = df.groupby('rounded_depth').quantile(0.75)
 
-
         N = len(wl_)
-        x = mean.prof_Edz #- 0.56
+        x = mean.prof_Edz  # - 0.56
         depth_ = np.linspace(0, x.max(), 200)
-        res=fit(N)
-        res_w,res_rw,res_med=fit(N),fit(N),fit(N)
+        res = fit(N)
+        res_w, res_rw, res_med = fit(N), fit(N), fit(N)
 
         for idx, wl in enumerate(wl_[:-10]):
             aw, bbw = iopw.get_iopw(wl)
@@ -108,15 +102,19 @@ for idpr in idprs:#[-1:]:
 
             y = mean.Edz.iloc[:, idx]
             sigma = std.Edz.iloc[:, idx]
-            sigma[sigma<noise]=noise
-            sigma.fillna(np.inf,inplace=True)
-            res.popt[idx,:], res.pcov[idx,...] = curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100], bounds=([aw, 0], [np.inf, F0]))
-            res_w.popt[idx,:], res_w.pcov[idx,...] = curve_fit(iwr_process.f_logEdz, x, np.log(1+y), [1.1 * aw, 100],  bounds=([aw, 0], [np.inf, F0]))#, sigma=sigma, absolute_sigma=True
-            #res_rw.append( curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100], sigma=sigma, absolute_sigma=False, bounds=([aw, 0], [np.inf, F0])))
+            sigma[sigma < noise] = noise
+            sigma.fillna(np.inf, inplace=True)
+            res.popt[idx, :], res.pcov[idx, ...] = curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100],
+                                                             bounds=([aw, 0], [np.inf, F0]))
+            res_w.popt[idx, :], res_w.pcov[idx, ...] = curve_fit(iwr_process.f_logEdz, x, np.log(1 + y),
+                                                                 [1.1 * aw, 100], bounds=(
+                [aw, 0], [np.inf, F0]))  # , sigma=sigma, absolute_sigma=True
+            # res_rw.append( curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100], sigma=sigma, absolute_sigma=False, bounds=([aw, 0], [np.inf, F0])))
             y = median.Edz.iloc[:, idx]
-            res_med.popt[idx,:], res_med.pcov[idx,...] = curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100], bounds=([aw, 0], [np.inf, F0]))
+            res_med.popt[idx, :], res_med.pcov[idx, ...] = curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100],
+                                                                     bounds=([aw, 0], [np.inf, F0]))
 
-        i=0
+        i = 0
 
         mpl.rcParams.update({'font.size': 12})
 
@@ -134,13 +132,13 @@ for idpr in idprs:#[-1:]:
                        c=mean.Ed.iloc[:, idx],
                        alpha=0.6, cmap=cmocean.cm.thermal, label=None
                        )
-            Ed_sim = iwr_process.f_Edz(depth_, *res.popt[idx,:])
+            Ed_sim = iwr_process.f_Edz(depth_, *res.popt[idx, :])
             ax.plot(depth_, Ed_sim, linestyle='-', c='black', label='mean')
-            Ed_sim = iwr_process.f_Edz(depth_, *res_w.popt[idx,:])
+            Ed_sim = iwr_process.f_Edz(depth_, *res_w.popt[idx, :])
             ax.plot(depth_, Ed_sim, linestyle=':', c='black', label='log-space')
-            #Ed_sim = iwr_process.f_Edz(depth_, *res_rw[idx][0])
-            #ax.plot(depth_, Ed_sim, linestyle=':', c='red', label='mean, relativ weighted')
-            Ed_sim = iwr_process.f_Edz(depth_, *res_med.popt[idx,:])
+            # Ed_sim = iwr_process.f_Edz(depth_, *res_rw[idx][0])
+            # ax.plot(depth_, Ed_sim, linestyle=':', c='red', label='mean, relativ weighted')
+            Ed_sim = iwr_process.f_Edz(depth_, *res_med.popt[idx, :])
             ax.plot(depth_, Ed_sim, linestyle='--', c='black', label='median')
 
             ax.semilogy()
@@ -148,14 +146,13 @@ for idpr in idprs:#[-1:]:
             ax.set_ylabel(r'$E_d\ ({mW\cdot m^{-2}\cdot nm^{-1}})$')
             ax.set_xlabel('Depth (m)')
             ax.set_title(r'$\lambda = $' + str(round(wl_[idx], 1)) + ' nm, Kd = ' +
-                         str(round(res_w.popt[idx,0], 3)) + '$m^{-1}$, Ed0 =' + str(round(res_w.popt[idx,1], 1)), fontsize=12)
+                         str(round(res_w.popt[idx, 0], 3)) + '$m^{-1}$, Ed0 =' + str(round(res_w.popt[idx, 1], 1)),
+                         fontsize=12)
         ax.legend(loc='best', frameon=False)
         fig.suptitle('trios_iwr ' + name + ' idpr' + idpr, fontsize=16)
         # fig.savefig(os.path.join(dirfig,'trios_iw_idpr' + idpr + '_'+name+'.png'),dpi=600)
         fig.savefig(os.path.join(dirfig, 'trios_iw_idpr' + idpr + '_' + name + '.pdf'))
         plt.close()
-
-
 
         mpl.rcParams.update({'font.size': 18})
         fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(15, 6))
@@ -163,22 +160,22 @@ for idpr in idprs:#[-1:]:
 
         iparam = 0
         ax = axs.flat[iparam]
-        y, std = res.popt[:,iparam], res.pcov[:,iparam,iparam]
+        y, std = res.popt[:, iparam], res.pcov[:, iparam, iparam]
         add_curve(ax, wl_, y, std, c='red', label='mean')
-        y, std = res_w.popt[:,iparam], res_w.pcov[:,iparam,iparam]
+        y, std = res_w.popt[:, iparam], res_w.pcov[:, iparam, iparam]
         add_curve(ax, wl_, y, std, c='orange', label='log-space')
-        y, std = res_med.popt[:,iparam], res_med.pcov[:,iparam,iparam]
+        y, std = res_med.popt[:, iparam], res_med.pcov[:, iparam, iparam]
         add_curve(ax, wl_, y, std, c='green', label='median')
         ax.set_ylabel(r'$K_{d}\ ({m^{-1}})$')
         ax.set_xlabel(r'Wavelength (nm)')
 
         iparam = 1
         ax = axs.flat[iparam]
-        y, std = res.popt[:,iparam], np.sqrt(res.pcov[:,iparam,iparam])
+        y, std = res.popt[:, iparam], np.sqrt(res.pcov[:, iparam, iparam])
         add_curve(ax, wl_, y, std, c='red', label='mean')
-        y, std = res_w.popt[:,iparam], np.sqrt(res_w.pcov[:,iparam,iparam])
+        y, std = res_w.popt[:, iparam], np.sqrt(res_w.pcov[:, iparam, iparam])
         add_curve(ax, wl_, y, std, c='orange', label='log-space')
-        y, std = res_med.popt[:,iparam], np.sqrt(res_med.pcov[:,iparam,iparam])
+        y, std = res_med.popt[:, iparam], np.sqrt(res_med.pcov[:, iparam, iparam])
         add_curve(ax, wl_, y, std, c='green', label='median')
         add_curve(ax, wl_, mean.Ed.mean(), mean.Ed.std(), c='black', label='Es')
 
@@ -186,7 +183,7 @@ for idpr in idprs:#[-1:]:
         ax.set_ylabel(r'$E_{d}(0^{-})\ ({mW\cdot m^{-2}\cdot nm^{-1}})$')
         ax.set_xlabel(r'Wavelength (nm)')
         fig.suptitle('trios_iwr ' + name + ' idpr' + idpr, fontsize=16)
-        fig.savefig(os.path.join(dirfig, 'trios_iwr_l2_idpr' + idpr + '_'+name+ '.pdf'))
+        fig.savefig(os.path.join(dirfig, 'trios_iwr_l2_idpr' + idpr + '_' + name + '.pdf'))
         plt.close()
 
         # fig, ax = plt.subplots()
