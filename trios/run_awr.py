@@ -120,7 +120,6 @@ for idpr in idprs:
         wl = Rrs.T.index.get_level_values(1)
         date = Rrs.index.get_level_values(0).date[0].__str__()
 
-
         # ------------------
         # plotting
         # ------------------

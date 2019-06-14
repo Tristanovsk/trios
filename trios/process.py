@@ -4,9 +4,11 @@ import scipy.optimize as so
 
 import plotly.graph_objs as go
 
+import trios.utils.utils as uu
 from trios.utils.utils import reshape as r
 import trios.utils.auxdata as ua
 from trios.config import *
+
 
 
 class awr_process:
@@ -215,7 +217,7 @@ class awr_process:
                 geom = [sza[i], vza, azi]
                 meas = [Lt[i], Lsky[i], Ed[i]]
                 x0 = ws
-                res_lsq = so.least_squares(self.cost_func, x0, args=(geom, meas, Rrs_bar))
+                res_lsq = so.least_squares(self.cost_func, x0, bounds=(0,15), args=(geom, meas, Rrs_bar))
                 res.append(res_lsq)
                 x_est.append(res_lsq.x[0])
                 Rrs, rho = self.process(wl, Lt[i], Lsky[i], Ed[i], sza[i], ws=res_lsq.x[0], azi=azi)
@@ -312,30 +314,73 @@ class iwr_process:
         self.df = df
         self.wl = wl
 
-    def process(self):
-        wl = self.wl
-        df = self.df
+    def process(self, meas, std, mode ='linear'):
+        wl_ = self.wl
 
-        reflectance = df.loc[:, ("Luz")] / df.loc[:, ("Edz")]
-        reflectance.columns = pd.MultiIndex.from_product([['reflectance'], reflectance.columns], names=['param', 'wl'])
-        self.reflectance = reflectance
+        ################
+        # load aux data
+        iopw = ua.iopw()
+        iopw.load_iopw()
+        irr = ua.irradiance()
+        irr.load_F0()
+        # TODO check noise values (e.g., NEI from Trios), should it be spectral?
+        noise = 0.1
 
-        df['rounded_depth', ''] = df.prof_Edz.round(1)
-        df.groupby('rounded_depth').mean()
+        N = len(wl_)
+        x = meas.prof_Edz  # - 0.56
+        res = uu.fit(N)
 
-        # TODO add central part of run_iwr.py here
+        for idx, wl in enumerate(wl_[:-10]):
+            aw, bbw = iopw.get_iopw(wl)
+            F0 = irr.get_F0(wl)
 
-        return self.reflectance
+            y = meas.Edz.iloc[:, idx]
+            sigma = std.Edz.iloc[:, idx]
+            sigma[sigma < noise] = noise
+            sigma.fillna(np.inf, inplace=True)
+            if mode == 'linear':
+                res.popt[idx, :], res.pcov[idx, ...] = so.curve_fit(self.f_Edz, x, y, [1.1 * aw, 100],
+                                                                bounds=([aw, 0], [np.inf, F0]))
+            elif mode == 'log':
+                res.popt[idx, :], res.pcov[idx, ...] = so.curve_fit(self.f_logEdz, x, np.log(1 + y),
+                                                            [1.1 * aw, 100], bounds=([aw, 0], [np.inf, F0]))  # , sigma=sigma, absolute_sigma=True
+            elif mode == 'lmsq':
+                z = (meas.prof_Edz, meas.prof_Luz)
+                y = (meas.Edz.iloc[:, idx], meas.Luz.iloc[:, idx])
+                x0 = [1.1 * aw, 100, 1.1 * aw, meas.Luz.iloc[0, idx]]
+                so.least_squares(self.cost_func, x0, args=(z, y))
 
-    @staticmethod
-    def f_Edz(depth, Kd, Ed0):
+        return res
+
+    #@staticmethod
+    def f_Edz(self, depth, Kd, Ed0):
         '''simple Edz model for homogeneous water column'''
         return Ed0 * np.exp(-Kd * depth)
 
-    @staticmethod
-    def f_logEdz(depth, Kd, Ed0):
+    #@staticmethod
+    def f_logEdz(self, depth, Kd, Ed0):
         '''simple Edz model for homogeneous water column'''
-        return np.log(1 + iwr_process.f_Edz(depth, Kd, Ed0))  # Ed0) -Kd*depth
+        return np.log(1 + self.f_Edz(depth, Kd, Ed0))  # Ed0) -Kd*depth
+
+    def f_Lu(self, depth, KLu, Lw0minus):
+        '''simple Edz model for homogeneous water column'''
+        return  Lw0minus * np.exp(-KLu * depth)
+
+    def cost_func(self, x, z, mes):
+
+
+        z_Edz = z[0]
+        z_Lu = z[1]
+        Edz = mes[0]
+        Lu = mes[1]
+
+        cost_f1 = Edz - self.f_Edz( z_Edz, x[0], x[1])
+        cost_f2 = Lu - self.f_Lu( z_Lu, x[2], x[3])
+
+        return np.append(cost_f1,cost_f2)
+
+
+
 
     def Kd(self, depth, Edz):
         Kd = np.diff(Edz) / np.diff(depth)

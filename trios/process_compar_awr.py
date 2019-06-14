@@ -1,6 +1,7 @@
 import glob
 import re
 import matplotlib.pyplot as plt
+plt.rcParams.update({'font.size': 18})
 from scipy.interpolate import interp1d
 
 from trios.utils.sunposition import sunpos
@@ -18,6 +19,7 @@ swrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/Lu0*idpr*.csv")
 iopw = ua.iopw()
 iopw.load_iopw()
 
+
 def add_curve(ax, x, mean, std, c='red', label=''):
     ax.plot(x, mean, linestyle='solid', c=c, lw=2.5,
             alpha=0.8, label=label)
@@ -30,7 +32,7 @@ idpr = '167'
 
 # get idpr numbers
 idprs = np.unique([re.findall(r'idpr(\d+)', x)[0] for x in swrfiles])
-#idprs = np.array(['170'])
+# idprs = np.array(['170'])
 # loop over idpr
 for idpr in idprs:
     c = coords[coords.ID_prel == int(idpr)]  # .values[0]
@@ -58,7 +60,7 @@ for idpr in idprs:
         Rrs_swr = swr.call_process()
         add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='black')
         Rrs_swr = swr.call_process(shade_corr=True)
-        add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='red')
+        # add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='red')
 
     # -----------------------------------------------
     #   AWR processing
@@ -102,37 +104,57 @@ for idpr in idprs:
         # Lt.reset_index(level=[1,2],inplace=True)
 
         # merge sensor data on time
-        df = pd.merge_asof(Lt, Ed, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
-                           direction="nearest")
-        df = pd.merge_asof(df, Lsky, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
-                           direction="nearest")
+        raw = pd.merge_asof(Lt, Ed, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
+                            direction="nearest")
+        raw = pd.merge_asof(raw, Lsky, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
+                            direction="nearest")
 
         # add solar angle data and idpr
         # compute solar angle (mean between fisrt and last aqcuisition time
-        df['sza', ''] = np.nan
-        for index, row in df.iterrows():
+        raw['sza', ''] = np.nan
+        for index, row in raw.iterrows():
             # print index
             sza = sunpos(index, lat, lon, alt)[1]
-            df.at[index, 'sza'] = sza
+            raw.at[index, 'sza'] = sza
 
-        rho_h = awr.get_rho_values([df.sza.mean()], [vza], [azi], wl=wl)
-        rho15 = awr.get_rho_mobley(awr.rhoM2015, [df.sza.mean()], [vza], [azi], [ws])
-        rho99 = awr.get_rho_mobley(awr.rhoM1999, [df.sza.mean()], [vza], [azi], [ws])
+        # ------------------
+        # filtering
+        # ------------------
+        ind = awr.filtering(raw.Lt, raw.Lsky, raw.Ed)
+        clean = raw[ind]
+        Lt, Lsky, Ed, sza = clean.Lt.values, clean.Lsky.values, clean.Ed.values, clean.sza.values
 
-        Rrs_h = (df.loc[:, 'Lt'] - rho_h * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
-        Rrs15 = (df.loc[:, 'Lt'] - rho15 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
+        # -----------------------------
+        # data processing
+        # -----------------------------
+        Rrs99, rho99 = awr.process_wrapper(wl, clean, clean.sza, ws=ws, azi=azi)
+        Rrs15, rho15 = awr.process_wrapper(wl, clean, clean.sza, ws=ws, azi=azi, method='M15')
+        Rrs_h, rho_h = awr.process_wrapper(wl, clean, clean.sza, ws=ws, azi=azi, method='osoaa')
+        Rrs_opt, Rrs_opt_std = awr.process_optimization(wl, Lt, Lsky, Ed, sza, azi=azi)
+        wl = Rrs99.T.index.get_level_values(1)
+        date = Rrs99.index.get_level_values(0).date[0].__str__()
 
-        Rrs99 = (df.loc[:, 'Lt'] - rho99 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
-        # plt.figure()
+        # ------------------
+        # plotting
+        # ------------------
+
+        # rho_h = awr.get_rho_values([df.sza.mean()], [vza], [azi], wl=wl)
+        # rho15 = awr.get_rho_mobley(awr.rhoM2015, [df.sza.mean()], [vza], [azi], [ws])
+        # rho99 = awr.get_rho_mobley(awr.rhoM1999, [df.sza.mean()], [vza], [azi], [ws])
+        #
+        # Rrs_h = (df.loc[:, 'Lt'] - rho_h * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
+        # Rrs15 = (df.loc[:, 'Lt'] - rho15 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
+        # Rrs99 = (df.loc[:, 'Lt'] - rho99 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
 
         add_curve(ax, wl, Rrs15.transpose().mean(axis=1), Rrs15.transpose().std(axis=1),
-                  label='M2015 (' + str(rho15) + ')')
+                  label='M2015 (' + str(round(rho15,4)) + ')',c='violet')
         add_curve(ax, wl, Rrs99.transpose().mean(axis=1), Rrs99.transpose().std(axis=1), c='orange',
-                  label='M1999(' + str(rho99) + ')')
-        add_curve(ax, wl, Rrs_h.transpose().mean(axis=1), Rrs_h.transpose().std(axis=1), c='grey',
-                  label='h(' + str(rho_h.mean()) + ')')
-
-    ax.set_title('azi=' + str(azi) + ', vza=' + str(vza) + ', sza=' + str(sza))
+                  label='M1999(' + str(round(rho99,4)) + ')')
+        add_curve(ax, wl, Rrs_h.transpose().mean(axis=1), Rrs_h.transpose().std(axis=1), c='green',
+                  label='h(' + str(round(rho_h.mean(),4)) + ')')
+        add_curve(ax, wl, Rrs_opt, Rrs_opt_std, c='blue',
+                  label='Optimization')
+    ax.set_title('azi=' + str(azi) + ', vza=' + str(vza) + ', sza=' + str(round(sza.mean(),2)))
 
     ax.legend(loc='best', frameon=False)
 
@@ -140,4 +162,3 @@ for idpr in idprs:
     ax.set_xlabel(r'Wavelength (nm)')
     fig.savefig(os.path.join(dirfig, 'trios_awr_' + name + '_idpr' + idpr + '.png'))
     plt.close()
-

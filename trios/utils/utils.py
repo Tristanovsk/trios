@@ -104,7 +104,7 @@ class iwr_data:
         return full data frame
 
         :param Edf: file path of irradiance data
-        :param Edzf: file pat of downward in-water irradiance data
+        :param Edzf: file path of downward in-water irradiance data
         :param Luzf:  file path of upward in-water radiance data
         :param lat: latitude (decimal)
         :param lon: longitude (decimal)
@@ -116,8 +116,6 @@ class iwr_data:
         :return:
         '''
 
-        df = pd.DataFrame()
-
         # ''' read files with pandas format '''
         d = data([1, 0])
 
@@ -126,9 +124,9 @@ class iwr_data:
         Luz, wl_Luz = d.load_csv(self.Luzf)
 
         #mask negative values TODO save number of discarded data
-        # Ed.mask(Ed<0,inplace=True)
-        # Edz.mask(Edz<0,inplace=True)
-        # Luz.mask(Luz<0,inplace=True)
+        Ed[Ed < 0] = 0 #.mask(Ed<0,inplace=True)
+        Edz[Edz < 0] = 0 #.mask(Edz<0,inplace=True)
+        Luz[Luz < 0] = 0 #.mask(Luz<0,inplace=True)
 
         # copy depth data to Ed frame on date index
         # Ed.index = Ed.index.droplevel(level=1)
@@ -148,10 +146,10 @@ class iwr_data:
         newLuz = pd.DataFrame(index=Luz.index, columns=pd.MultiIndex.from_tuples(list(zip(['Luz'] * len(wl), wl)),
                               names=['param', 'wl']), data=intLuz)
 
-
+        print('read merge ok')
         # correct depth data for sensor to sensor distance
         newLuz.reset_index(level=1, inplace=True)
-        newLuz.iloc[:, 0] = Luz.iloc[:, 0] + delta_Lu_depth
+        newLuz.iloc[:, 0] = newLuz.iloc[:, 0] + delta_Lu_depth
         # newEd.reset_index(level=1,inplace=True)
 
         newEdz.reset_index(level=1, inplace=True)
@@ -257,6 +255,12 @@ class swr_data:
         df['idpr', ''] = self.idpr
 
         return df, wl
+
+
+class fit:
+    def __init__(self, N=0, m=2):
+        self.popt = np.full([N, m], np.nan)
+        self.pcov = np.full([N, m, m], np.nan)
 
 
 class data:

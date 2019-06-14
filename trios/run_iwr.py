@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import cmocean
 import plotly
 import plotly.graph_objs as go
+import scipy.optimize as so
+
 import trios.utils.utils as u
 import trios.utils.auxdata as ua
 from trios.process import *
@@ -53,7 +55,7 @@ irr = ua.irradiance()
 irr.load_F0()
 # TODO check noise values (e.g., NEI from Trios), should it be spectral?
 noise = 0.1
-idpr = '178'
+idpr = '177'
 # loop over idpr
 for idpr in idprs:  # [-1:]:
     #    idpr=idprs[2]
@@ -69,7 +71,7 @@ for idpr in idprs:  # [-1:]:
         ofile = os.path.join(odir, 'Rrs_swr_' + date.values[0] + '_idpr' + idpr + '_' + name + '.csv')
         header = c.stack()
         header.index = header.index.droplevel()
-        header.to_csv(ofile, header=None)
+        header.to_csv(ofile, header=False)
 
         dff = pd.DataFrame()
 
@@ -78,42 +80,37 @@ for idpr in idprs:  # [-1:]:
         # -----------------------------------------------
         iwr = u.iwr_data(idpr, iwrfiles)
         if iwr.file:
-            df, wl_ = iwr.reader(lat, lon, alt)
-            reflectance = iwr_process(df, wl_).process()
-            df = pd.concat([df, reflectance], axis=1)
+            df, wl_ = iwr.reader(lat, lon, alt) # depth data already corrected for sensor position  , delta_Lu_depth=0.07,delta_Edz_depth=-0.28)
+        else:
+            continue
 
-            # df.to_csv(os.path.join(odir, 'trios_iwr_' + name + '_idpr' + idpr + '.csv'))
-
+        # ---------------------------
+        # Data formatting
+        # ---------------------------
+        # set pandas dataframes with data and parameters
+        df['rounded_depth', ''] = df.prof_Edz.round(1)
         mean = df.groupby('rounded_depth').mean()
         median = df.groupby('rounded_depth').median()
         std = df.groupby('rounded_depth').std()
         q25 = df.groupby('rounded_depth').quantile(0.25)
         q75 = df.groupby('rounded_depth').quantile(0.75)
-
-        N = len(wl_)
-        x = mean.prof_Edz  # - 0.56
+        x = mean.prof_Edz
         depth_ = np.linspace(0, x.max(), 200)
-        res = fit(N)
-        res_w, res_rw, res_med = fit(N), fit(N), fit(N)
 
-        for idx, wl in enumerate(wl_[:-10]):
-            aw, bbw = iopw.get_iopw(wl)
-            F0 = irr.get_F0(wl)
+        # ---------------------------
+        # Data processing
+        # ---------------------------
+        # load process object
+        process = iwr_process(wl=wl_)
 
-            y = mean.Edz.iloc[:, idx]
-            sigma = std.Edz.iloc[:, idx]
-            sigma[sigma < noise] = noise
-            sigma.fillna(np.inf, inplace=True)
-            res.popt[idx, :], res.pcov[idx, ...] = curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100],
-                                                             bounds=([aw, 0], [np.inf, F0]))
-            res_w.popt[idx, :], res_w.pcov[idx, ...] = curve_fit(iwr_process.f_logEdz, x, np.log(1 + y),
-                                                                 [1.1 * aw, 100], bounds=(
-                [aw, 0], [np.inf, F0]))  # , sigma=sigma, absolute_sigma=True
-            # res_rw.append( curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100], sigma=sigma, absolute_sigma=False, bounds=([aw, 0], [np.inf, F0])))
-            y = median.Edz.iloc[:, idx]
-            res_med.popt[idx, :], res_med.pcov[idx, ...] = curve_fit(iwr_process.f_Edz, x, y, [1.1 * aw, 100],
-                                                                     bounds=([aw, 0], [np.inf, F0]))
+        # process data
+        res = process.process(mean, std)
+        res_w = process.process(mean, std, mode='log')
+        res_med = process.process(median, std)
 
+        # ---------------------------
+        # Plotting section
+        # ---------------------------
         i = 0
 
         mpl.rcParams.update({'font.size': 12})
@@ -132,13 +129,13 @@ for idpr in idprs:  # [-1:]:
                        c=mean.Ed.iloc[:, idx],
                        alpha=0.6, cmap=cmocean.cm.thermal, label=None
                        )
-            Ed_sim = iwr_process.f_Edz(depth_, *res.popt[idx, :])
+            Ed_sim = iwr_process().f_Edz(depth_, *res.popt[idx, :])
             ax.plot(depth_, Ed_sim, linestyle='-', c='black', label='mean')
-            Ed_sim = iwr_process.f_Edz(depth_, *res_w.popt[idx, :])
+            Ed_sim = iwr_process().f_Edz(depth_, *res_w.popt[idx, :])
             ax.plot(depth_, Ed_sim, linestyle=':', c='black', label='log-space')
             # Ed_sim = iwr_process.f_Edz(depth_, *res_rw[idx][0])
             # ax.plot(depth_, Ed_sim, linestyle=':', c='red', label='mean, relativ weighted')
-            Ed_sim = iwr_process.f_Edz(depth_, *res_med.popt[idx, :])
+            Ed_sim = iwr_process().f_Edz(depth_, *res_med.popt[idx, :])
             ax.plot(depth_, Ed_sim, linestyle='--', c='black', label='median')
 
             ax.semilogy()
