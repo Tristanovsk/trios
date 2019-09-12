@@ -4,6 +4,7 @@ dash_html_components
 pandas
 scipy
 numpy
+pyodbc
 netCDF4
 matplotlib
 docopt

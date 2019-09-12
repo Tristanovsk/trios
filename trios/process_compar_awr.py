@@ -1,5 +1,7 @@
 import glob
 import re
+
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 18})
 from scipy.interpolate import interp1d
@@ -12,20 +14,21 @@ coordf = glob.glob("/DATA/OBS2CO/data/info/mesures_in_situ.csv")[0]
 coords = pd.read_csv(coordf, sep=';')
 dirfig = os.path.abspath('/DATA/OBS2CO/data/trios/fig')
 
-awrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/aw*idpr*.csv")
+awrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/2018/aw*idpr*.csv")
 # awrfiles = glob.glob("/DATA/OBS2CO/data/trios/test_setup/raw/aw*idpr*.csv")
-swrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/Lu0*idpr*.csv")
+swrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/2018/Lu0*idpr*.csv")
 
 iopw = ua.iopw()
 iopw.load_iopw()
 
 
-def add_curve(ax, x, mean, std, c='red', label=''):
+def add_curve(ax, x, mean, std=None, c='red', label='',**kwargs):
     ax.plot(x, mean, linestyle='solid', c=c, lw=2.5,
-            alpha=0.8, label=label)
-    ax.fill_between(x,
-                    mean - std,
-                    mean + std, alpha=0.35, color=c)
+            alpha=0.8, label=label,*kwargs)
+    if np.any(std):
+        ax.fill_between(x,
+                        mean - std,
+                        mean + std, alpha=0.35, color=c)
 
 
 idpr = '167'
@@ -41,8 +44,7 @@ for idpr in idprs:
     alt = 0  # c['Altitude']
     name = c['ID_lac'].values[0]
 
-    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 8))
-    fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.65)
+
 
     # -----------------------------------------------
     #   SWR processing
@@ -58,9 +60,6 @@ for idpr in idprs:
             df.at[index, 'sza'] = sza
         swr = swr_process(df, wl_swr)
         Rrs_swr = swr.call_process()
-        add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='black')
-        Rrs_swr = swr.call_process(shade_corr=True)
-        # add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='red')
 
     # -----------------------------------------------
     #   AWR processing
@@ -137,15 +136,75 @@ for idpr in idprs:
         # ------------------
         # plotting
         # ------------------
+        Ltm = Lt.mean(axis=0)
+        Edm = Ed.mean(axis=0)
 
-        # rho_h = awr.get_rho_values([df.sza.mean()], [vza], [azi], wl=wl)
-        # rho15 = awr.get_rho_mobley(awr.rhoM2015, [df.sza.mean()], [vza], [azi], [ws])
-        # rho99 = awr.get_rho_mobley(awr.rhoM1999, [df.sza.mean()], [vza], [azi], [ws])
-        #
-        # Rrs_h = (df.loc[:, 'Lt'] - rho_h * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
-        # Rrs15 = (df.loc[:, 'Lt'] - rho15 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
-        # Rrs99 = (df.loc[:, 'Lt'] - rho99 * df.loc[:, 'Lsky']) / df.loc[:, 'Ed']
+        mpl.rcParams.update({'font.size': 18})
+        fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(20, 12))
+        fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.45)
 
+        # ---- Ed
+        ax = axs[0,0]
+        add_curve(ax, wl, Ed.mean(axis=0),
+                  label=r'$L_{sky}$',c='red') # just to put the two labels
+        add_curve(ax, wl, Ed.mean(axis=0), Ed.std(axis=0),
+                  label=r'$E_s$',c='black')
+        ax.set_ylabel(r'$E_{d}(0^{+})$')
+
+        # ---- Lsky
+        ax2 = ax.twinx()
+        add_curve(ax2, wl, Lsky.mean(axis=0), Lsky.std(axis=0),
+                  label=r'$L_{sky}$',c='red')
+        ax2.set_ylabel(r'$L_{sky}$',color='r')
+        ax2.tick_params('y', colors='r')
+        ax.set_xlabel(r'Wavelength (nm)')
+        ax.legend(loc='best', frameon=False)
+
+
+        # ---- Lt vs Lsurf
+        ax = axs[0,1]
+        add_curve(ax, wl, Lt.mean(axis=0), Lt.std(axis=0),
+                  label=r'$L_t$',c='black')
+        add_curve(ax, wl, Lsky.mean(axis=0)*rho15, Lsky.std(axis=0)*rho15,
+                  label='M2015 (' + str(round(rho15,4)) + ')',c='violet')
+        add_curve(ax, wl, Lsky.mean(axis=0)*rho99, Lsky.std(axis=0)*rho99, c='orange',
+                  label='M1999(' + str(round(rho99,4)) + ')')
+        add_curve(ax, wl, Lsky.mean(axis=0)*rho_h, Lsky.std(axis=0)*rho_h, c='green',
+                  label='h(' + str(round(rho_h.mean(),4)) + ')')
+
+        ax.set_ylabel(r'$L_t\ or L_{surf}$')
+        ax.set_xlabel(r'Wavelength (nm)')
+
+        # ---- Proportion o(Lt - Lsurf ) /Lt
+        ax = axs[0,2]
+
+
+        add_curve(ax, wl, Lsky.mean(axis=0)*rho15/Ltm, Lsky.std(axis=0)*rho15,
+                  label='M2015 (' + str(round(rho15,4)) + ')',c='violet')
+        add_curve(ax, wl, Lsky.mean(axis=0)*rho99/Ltm, Lsky.std(axis=0)*rho99, c='orange',
+                  label='M1999(' + str(round(rho99,4)) + ')')
+        add_curve(ax, wl, Lsky.mean(axis=0)*rho_h/Ltm, Lsky.std(axis=0)*rho_h, c='green',
+                  label='h(' + str(round(rho_h.mean(),4)) + ')')
+
+        ax.set_ylabel(r'$L_{surf}/L_t$')
+        ax.set_xlabel(r'Wavelength (nm)')
+
+        # ---- Lw
+        ax = axs[1,0]
+        add_curve(ax, wl, Rrs15.mean(axis=0)*Edm, Rrs15.std(axis=0)*Edm,
+                  label='M2015 (' + str(round(rho15,4)) + ')',c='violet')
+        add_curve(ax, wl, Rrs99.mean(axis=0)*Edm, Rrs99.std(axis=0)*Edm, c='orange',
+                  label='M1999(' + str(round(rho99,4)) + ')')
+        add_curve(ax, wl, Rrs_h.mean(axis=0)*Edm, Rrs_h.std(axis=0)*Edm, c='green',
+                  label='h(' + str(round(rho_h.mean(),4)) + ')')
+        add_curve(ax, wl, Rrs_opt*Edm, Rrs_opt_std*Edm, c='blue',
+                  label='Optimization')
+        ax.set_ylabel(r'$L_{w}\  (sr^{-1})$')
+        ax.set_xlabel(r'Wavelength (nm)')
+
+        # ---- Rrs
+        ax = axs[1,1]
+        add_curve(ax, wl_swr, Rrs_swr.transpose().mean(axis=1), Rrs_swr.transpose().std(axis=1), label='swr', c='black')
         add_curve(ax, wl, Rrs15.transpose().mean(axis=1), Rrs15.transpose().std(axis=1),
                   label='M2015 (' + str(round(rho15,4)) + ')',c='violet')
         add_curve(ax, wl, Rrs99.transpose().mean(axis=1), Rrs99.transpose().std(axis=1), c='orange',
@@ -154,11 +213,26 @@ for idpr in idprs:
                   label='h(' + str(round(rho_h.mean(),4)) + ')')
         add_curve(ax, wl, Rrs_opt, Rrs_opt_std, c='blue',
                   label='Optimization')
-    ax.set_title('azi=' + str(azi) + ', vza=' + str(vza) + ', sza=' + str(round(sza.mean(),2)))
+        ax.set_ylabel(r'$R_{rs}\  (sr^{-1})$')
+        ax.set_xlabel(r'Wavelength (nm)')
+        ax.set_title('azi=' + str(azi) + ', vza=' + str(vza) + ', sza=' + str(round(sza.mean(), 2)))
 
-    ax.legend(loc='best', frameon=False)
+        # ---- delta Rrs
+        ax = axs[1,2]
+        Rrs_swr_ = interp1d(wl_swr, Rrs_swr.transpose().mean(axis=1), fill_value='extrapolate')(wl)
+        Rrs_swr_[wl > 850]=np.nan
+        add_curve(ax, wl, (Rrs15.mean(axis=0)-Rrs_swr_)/Rrs_swr_,
+                  label='M2015 (' + str(round(rho15,4)) + ')',c='violet')
+        add_curve(ax, wl, (Rrs99.mean(axis=0)-Rrs_swr_)/Rrs_swr_, c='orange',
+                  label='M1999(' + str(round(rho99,4)) + ')')
+        add_curve(ax, wl, (Rrs_h.mean(axis=0)-Rrs_swr_)/Rrs_swr_, c='green',
+                  label='h(' + str(round(rho_h.mean(),4)) + ')')
+        add_curve(ax, wl, (Rrs_opt-Rrs_swr_)/Rrs_swr_, c='blue',
+                  label='Optimization')
+        ax.set_ylabel(r'$\Delta^{rel} R_{rs} $')
+        ax.set_xlabel(r'Wavelength (nm)')
+        ax.legend(loc='best', frameon=False)
 
-    ax.set_ylabel(r'$R_{rs}\  (sr^{-1})$')
-    ax.set_xlabel(r'Wavelength (nm)')
-    fig.savefig(os.path.join(dirfig, 'trios_awr_' + name + '_idpr' + idpr + '.png'))
-    plt.close()
+        fig.suptitle('trios_awr ' + name + ' idpr' + idpr, fontsize=16)
+        fig.savefig(os.path.join(dirfig, 'trios_awr_' + name + '_idpr' + idpr + '.png'))
+        plt.close()

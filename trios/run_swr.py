@@ -10,7 +10,7 @@ plot=True #False
 odir = os.path.abspath('/DATA/OBS2CO/data/trios/surface_water')
 dirfig = os.path.join(odir,'fig')
 
-swrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/Lu0*idpr*.csv")
+swrfiles = glob.glob("/DATA/OBS2CO/data/trios/raw/2018/Lu0*idpr*.csv")
 
 coordf = glob.glob("/DATA/OBS2CO/data/info/mesures_in_situ_test.csv")[0]
 coords = pd.read_csv(coordf, sep=';')

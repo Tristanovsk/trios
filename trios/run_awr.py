@@ -26,15 +26,6 @@ coords['Date_prel'] = coords['h_debut'] + datetime.timedelta(minutes=15)
 iopw = ua.iopw()
 iopw.load_iopw()
 
-
-def add_curve(ax, x, mean, std, c='red', label=''):
-    ax.plot(x, mean, linestyle='solid', c=c, lw=2.5,
-            alpha=0.8, label=label)
-    ax.fill_between(x,
-                    mean - std,
-                    mean + std, alpha=0.35, color=c)
-
-
 idpr = '167'
 
 # get idpr numbers

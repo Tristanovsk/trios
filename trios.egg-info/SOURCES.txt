@@ -12,6 +12,8 @@ aux/sensors_spec.py
 aux/surface_reflectance_factor_rho_coarse_aerosol_rg0.60_sig0.60.csv
 aux/surface_reflectance_factor_rho_fine_aerosol_rg0.06_sig0.46.csv
 aux/water_coef.txt
+exe/__init__.py
+exe/db_martinez.py
 simulation/__init__.py
 simulation/rho_snapshot.py
 trios/__init__.py

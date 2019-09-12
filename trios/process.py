@@ -10,7 +10,6 @@ import trios.utils.auxdata as ua
 from trios.config import *
 
 
-
 class awr_process:
     def __init__(self, df=None, wl=None):
         self.df = df
@@ -217,7 +216,7 @@ class awr_process:
                 geom = [sza[i], vza, azi]
                 meas = [Lt[i], Lsky[i], Ed[i]]
                 x0 = ws
-                res_lsq = so.least_squares(self.cost_func, x0, bounds=(0,15), args=(geom, meas, Rrs_bar))
+                res_lsq = so.least_squares(self.cost_func, x0, bounds=(0, 15), args=(geom, meas, Rrs_bar))
                 res.append(res_lsq)
                 x_est.append(res_lsq.x[0])
                 Rrs, rho = self.process(wl, Lt[i], Lsky[i], Ed[i], sza[i], ws=res_lsq.x[0], azi=azi)
@@ -314,7 +313,7 @@ class iwr_process:
         self.df = df
         self.wl = wl
 
-    def process(self, meas, std, mode ='linear'):
+    def process(self, meas, std, mode='linear'):
         wl_ = self.wl
 
         ################
@@ -329,6 +328,8 @@ class iwr_process:
         N = len(wl_)
         x = meas.prof_Edz  # - 0.56
         res = uu.fit(N)
+        if mode == 'lsq':
+            res = uu.fit(N, 4)
 
         for idx, wl in enumerate(wl_[:-10]):
             aw, bbw = iopw.get_iopw(wl)
@@ -340,47 +341,74 @@ class iwr_process:
             sigma.fillna(np.inf, inplace=True)
             if mode == 'linear':
                 res.popt[idx, :], res.pcov[idx, ...] = so.curve_fit(self.f_Edz, x, y, [1.1 * aw, 100],
-                                                                bounds=([aw, 0], [np.inf, F0]))
+                                                                    bounds=([aw, 0], [np.inf, F0]))
             elif mode == 'log':
                 res.popt[idx, :], res.pcov[idx, ...] = so.curve_fit(self.f_logEdz, x, np.log(1 + y),
-                                                            [1.1 * aw, 100], bounds=([aw, 0], [np.inf, F0]))  # , sigma=sigma, absolute_sigma=True
-            elif mode == 'lmsq':
+                                                                    [1.1 * aw, 100], bounds=(
+                        [aw, 0], [np.inf, F0]))  # , sigma=sigma, absolute_sigma=True
+            elif mode == 'lsq':
                 z = (meas.prof_Edz, meas.prof_Luz)
                 y = (meas.Edz.iloc[:, idx], meas.Luz.iloc[:, idx])
-                x0 = [1.1 * aw, 100, 1.1 * aw, meas.Luz.iloc[0, idx]]
-                so.least_squares(self.cost_func, x0, args=(z, y))
+
+                sig_Edz = self.format_sigma(std.Edz.iloc[:, idx],meas.Edz.iloc[:, idx], 0.1)
+                sig_Luz = self.format_sigma(std.Luz.iloc[:, idx],meas.Luz.iloc[:, idx], 1e-3)
+
+                sigma = (sig_Edz, sig_Luz)
+                sigma = (1,1)
+                x0 = [1.1 * aw, meas.Ed.iloc[:, idx].mean(), 1.1 * aw, meas.Luz.iloc[0, idx]]
+
+                lsq = so.least_squares(self.cost_func, x0, args=(z, y, sigma),
+                                       bounds=([aw, 0, aw/2, 0], [np.inf, F0, np.inf, np.inf]))
+                cost = 2 * lsq.cost  # res.cost is half sum of squares!
+                res.popt[idx, :], res.pcov[idx, ...] = lsq.x, calc().cov_from_jac(lsq.jac, cost)
+
+            if mode == 'lsq':
+                # TODO formalize and do more clever things for Quality Control
+                # discard retrieval if error covariance > threshold error covariance median
+                QC_idx = res.pcov[:, 3,3] > 20 *  np.nanmedian(res.pcov[:, 3,3])
+
+                res.popt[QC_idx, 3] = np.nan
 
         return res
 
-    #@staticmethod
+    def format_sigma(self, sigma, rescale = 1, noise=0.1):
+        '''
+
+        :param sigma:
+        :return:
+        '''
+
+        sigma = (sigma + noise) / rescale
+
+        return sigma.fillna(np.inf)
+
+    # @staticmethod
     def f_Edz(self, depth, Kd, Ed0):
         '''simple Edz model for homogeneous water column'''
         return Ed0 * np.exp(-Kd * depth)
 
-    #@staticmethod
+    # @staticmethod
     def f_logEdz(self, depth, Kd, Ed0):
         '''simple Edz model for homogeneous water column'''
         return np.log(1 + self.f_Edz(depth, Kd, Ed0))  # Ed0) -Kd*depth
 
     def f_Lu(self, depth, KLu, Lw0minus):
         '''simple Edz model for homogeneous water column'''
-        return  Lw0minus * np.exp(-KLu * depth)
+        return Lw0minus * np.exp(-KLu * depth)
 
-    def cost_func(self, x, z, mes):
-
+    def cost_func(self, x, z, mes, sigma):
 
         z_Edz = z[0]
         z_Lu = z[1]
         Edz = mes[0]
         Lu = mes[1]
+        sig_Edz = sigma[0]
+        sig_Luz = sigma[1]
 
-        cost_f1 = Edz - self.f_Edz( z_Edz, x[0], x[1])
-        cost_f2 = Lu - self.f_Lu( z_Lu, x[2], x[3])
+        cost_f1 = (Edz - self.f_Edz(z_Edz, x[0], x[1])) / sig_Edz
+        cost_f2 = (Lu - self.f_Lu(z_Lu, x[2], x[3])) / sig_Luz
 
-        return np.append(cost_f1,cost_f2)
-
-
-
+        return np.append(cost_f1, cost_f2)
 
     def Kd(self, depth, Edz):
         Kd = np.diff(Edz) / np.diff(depth)
@@ -585,3 +613,30 @@ class calc:
                                                                                                         grid=True)
 
         return interp
+
+    def cov_from_jac(self, jac, cost):
+        '''
+        Compute covariance from jacobian matrix computed in optimization processes
+        Use Moore-Penrose inverse discarding zero singular values.
+        :param jac: jacobian
+        :param cost: cost residual
+        :return: pcov
+        '''
+
+        from scipy.linalg import svd
+
+        M, N = jac.shape
+        _, s, VT = svd(jac, full_matrices=False)
+        threshold = np.finfo(float).eps * max(jac.shape) * s[0]
+        s = s[s > threshold]
+        VT = VT[:s.size]
+        pcov = np.dot(VT.T / s ** 2, VT)
+
+        if pcov is None:
+            # indeterminate covariance
+            pcov = np.zeros((N, N), dtype=float)
+            pcov.fill(np.inf)
+        else:
+            s_sq = cost / (M - N)
+            pcov = pcov * s_sq
+        return pcov

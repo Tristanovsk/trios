@@ -308,3 +308,16 @@ class reshape:
         # fill it using Numpy's advanced indexing
         arr[tuple(df.index.codes)] = df[name].values.flat
         return arr
+
+class plot:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def add_curve(ax, x, mean, std=None, c='red', label='',**kwargs):
+        ax.plot(x, mean, linestyle='solid', c=c, lw=2.5,
+                alpha=0.8, label=label,*kwargs)
+        if np.any(std):
+            ax.fill_between(x,
+                            mean - std,
+                            mean + std, alpha=0.35, color=c)

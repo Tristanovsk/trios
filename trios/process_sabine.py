@@ -197,6 +197,7 @@ for group, df_ in dff.groupby(groupname):
     ind = filtering(raw_.Lt, raw_.Lsky, raw_.Ed)
     clean = raw_[ind]
     Lt, Lsky, Ed, sza = clean.Lt.values, clean.Lsky.values, clean.Ed.values, clean.sza.values
+
     # -----------------------------
     # data processing
     # -----------------------------
