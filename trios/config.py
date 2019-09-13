@@ -16,3 +16,8 @@ F0_file =  os.path.join(root, '../aux/Thuillier_2003_0.3nm.dat')
 wl_step = 3
 wl_common = np.arange(320,950+wl_step,wl_step)
 
+# wavelength indexes for iwr plotting
+# for close red/IR
+# idx_list_for_plot=(165,170,175,180,185,190,195,200,205)
+# through visible/IR
+idx_list_for_plot=(28, 37, 51, 71, 91, 105, 130, 140, 170)

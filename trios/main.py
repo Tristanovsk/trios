@@ -3,7 +3,8 @@
 Usage:
   trios_processing <input_dir> <IDpr> <measurement_type> --lat <lat> --lon <lon> \
    [--altitude=alt] [--ofile <ofile>] [--odir <odir>] [--plot] [--figdir <figdir>] \
-   [--name <name>] [--method <method>] [--no_clobber]
+   [--name <name>] [--method <method>] [--no_clobber] \
+   [--vza <vza>] [--azi <azi>] [--ws <ws>] [--aot <aot>]
   trios_processing -h | --help
   trios_processing -v | --version
 
@@ -26,6 +27,14 @@ Options:
   --name name  Keyword to append to file name and figures [default: ]
   --method method  Keyword for the method to apply for data processing.
                    For awr: M99, M15, osoaa, temp_opt [default: M99]
+  --vza vza  Viewing zenith angle (in deg) of the awr radiometer (applicable for all awr methods)
+            [default: 40]
+  --azi azi  Relative azimuth angle (in deg) of the awr radiometer (applicable for all awr methods)
+            [default: 135]
+  --ws ws  Wind speed (in m/s) (applicable for awr methods: M99, M15, osoaa)
+           [default: 2]
+  --aot aot  Aerosol optical thickness at 550 nm (applicable for awr methods: osoaa)
+             [default: 0.1]
   --no_clobber     Do not process  <input_dir> <IDpr> files if <output_file> already exists.
 '''
 
@@ -65,6 +74,10 @@ def main():
     plot = args['--plot']
     figdir = os.path.abspath(args['--figdir'])
     noclobber = args['--no_clobber']
+    azi = float(args['--azi'])
+    vza = float(args['--vza'])
+    ws = float(args['--ws'])
+    aot = float(args['--aot'])
 
     try:
         type_ = type_list[meas_type]
@@ -103,17 +116,15 @@ def main():
                 ax.set_ylabel(r'$R_{rs}\  (sr^{-1})$')
                 ax.set_xlabel(r'Wavelength (nm)')
                 ax.set_title('ID: ' + idpr + ', ' + date + ', sza=' + str(round(df.sza.mean(), 2)))
-                fig.savefig(os.path.join(figdir, 'trios_swr_' + date + '_idpr' + idpr + name+'.png'), bbox_inches='tight')
+                fig.savefig(os.path.join(figdir, 'trios_swr_' + date + '_idpr' + idpr + name + '.png'),
+                            bbox_inches='tight')
                 plt.close()
 
     elif meas_type == 'awr':
         # -----------------------------------------------
         #   AWR processing
         # -----------------------------------------------
-        azi = 135
-        vza = 40
-        ws = 2
-        method = 'M99'
+
         uawr = u.awr_data(idpr, files)
         if uawr.Edf:
             df, wl = uawr.reader(lat, lon, alt)
@@ -127,17 +138,39 @@ def main():
                 print('Skip processing: data already processed with "--no_clobber" set')
                 return
 
-            awr = awr_process(df, wl, name, idpr)
-
             if plot:
-                figfile = os.path.join(figdir, 'trios_awr_' + date + '_idpr' + idpr + name +'.png')
+                figfile = os.path.join(figdir, 'trios_awr_' + date + '_idpr' + idpr + name + '.png')
             else:
                 figfile = ""
 
-            Rrs = awr.call_process(method, ofile, vza=vza, azi=azi, plot_file=figfile)
+            awr = awr_process(df, wl, name, idpr)
+            Rrs = awr.call_process(method, ofile, vza=vza, azi=azi, ws=ws, aot=aot, plot_file=figfile)
 
     elif meas_type == 'iwr':
-        pass
+        # -----------------------------------------------
+        #   IWR processing
+        # -----------------------------------------------
+
+        uiwr = u.iwr_data(idpr, files)
+        if uiwr.file:
+            df, wl = uiwr.reader(lat, lon, alt)
+            date = df.index[0].date().__str__()
+            if ofile:
+                ofile = os.path.join(odir, ofile)
+            else:
+                ofile = os.path.join(odir, 'Rrs_iwr_' + date + '_idpr' + idpr + name + '.csv')
+
+            if noclobber and os.path.exists(ofile):
+                print('Skip processing: data already processed with "--no_clobber" set')
+                return
+
+            if plot:
+                figfile = os.path.join(figdir, 'trios_iwr_' + date + '_idpr' + idpr + name + '.pdf')
+            else:
+                figfile = ""
+
+            iwr = iwr_process(df, wl, name, idpr)
+            results = iwr.call_process(ofile, plot_file=figfile)
 
 
 if __name__ == "__main__":

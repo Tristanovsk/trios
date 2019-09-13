@@ -75,10 +75,26 @@ Usage:
 
 ## Running the tests
 
+- For `awr` data:
+
 ```
 trios_processing ./test/data/ 150 awr --lat 42.30351823 --lon 9.462897398 --odir ./test/results --no_clobber
 trios_processing ./test/data/ 150 awr --lat 42.30351823 --lon 9.462897398 --odir ./test/results --method M99 --name _M99 --plot --figdir ./test/fig
-trios_processing ./test/data/ 150 awr --lat 42.30351823 --lon 9.462897398 --odir ./test/results --method osoaa --name _osoaa --plot
+trios_processing ./test/data/ 150 awr --lat 42.30351823 --lon 9.462897398 --odir ./test/results --method osoaa --name _osoaa --plot --figdir ./test/fig
+trios_processing ./test/data/ 150 awr --lat 42.30351823 --lon 9.462897398 --odir ./test/results --method osoaa --ws 5 --aot=0.2 --name _osoaaws5_aot0.1 --plot --figdir ./test/fig
+trios_processing ./test/data/ 150 awr --lat 42.30351823 --lon 9.462897398 --odir ./test/results --method temp_opt --name _optimization --plot --figdir ./test/fig
+```
+
+- For `iwr` data:
+
+```
+trios_processing ./test/data/ 150 iwr --lat 42.30351823 --lon 9.462897398 --odir ./test/results --no_clobber --plot --figdir ./test/fig
+```
+
+- For `swr` data:
+
+```
+trios_processing ./test/data/ 150 swr --lat 42.30351823 --lon 9.462897398 --odir ./test/results --no_clobber --plot --figdir ./test/fig
 ```
 
 
