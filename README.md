@@ -2,9 +2,11 @@
 
 Package to process TriOS-like radiometer data for various acquisition protocols:
 - above-water radiometry
+
 <p align="center">
     <img src="images/above_water_system.png" width="400">
-</p>p>
+</p>
+
 - in-water radiometry
 
 ![figure](images/inwater_water_system.png) 
