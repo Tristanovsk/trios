@@ -25,6 +25,6 @@ setup(
     entry_points={
         'console_scripts': [
             'trios_processing = trios.main:main',
-            'visu_trios = visu.data_visu:main'
+            'trios_visual = visu.data_visu:main'
         ]}
 )

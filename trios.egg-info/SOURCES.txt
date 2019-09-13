@@ -14,10 +14,12 @@ aux/surface_reflectance_factor_rho_fine_aerosol_rg0.06_sig0.46.csv
 aux/water_coef.txt
 exe/__init__.py
 exe/db_martinez.py
+exe/db_petit-saut.py
 simulation/__init__.py
 simulation/rho_snapshot.py
 trios/__init__.py
 trios/config.py
+trios/main.py
 trios/process.py
 trios/process_compar_awr.py
 trios/process_sabine.py

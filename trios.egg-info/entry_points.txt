@@ -1,4 +1,4 @@
 [console_scripts]
-trios = main:main
+trios_processing = trios.main:main
 visu_trios = visu.data_visu:main
 

@@ -2,7 +2,8 @@
 
 Usage:
   trios_processing <input_dir> <IDpr> <measurement_type> --lat <lat> --lon <lon> \
-   [--altitude=alt] [--ofile <ofile>] [--odir <odir>] [--plot] [--figdir <figdir>]
+   [--altitude=alt] [--ofile <ofile>] [--odir <odir>] [--plot] [--figdir <figdir>] \
+   [--name <name>] [--method <method>] [--no_clobber]
   trios_processing -h | --help
   trios_processing -v | --version
 
@@ -22,6 +23,9 @@ Options:
   --ofile ofile       basename of the output file.
   --plot  Plot output data and save figure in <figdir>
   --figdir figdir  Directory where figures are saved [default: ./]
+  --name name  Keyword to append to file name and figures [default: ]
+  --method method  Keyword for the method to apply for data processing.
+                   For awr: M99, M15, osoaa, temp_opt [default: M99]
   --no_clobber     Do not process  <input_dir> <IDpr> files if <output_file> already exists.
 '''
 
@@ -51,14 +55,16 @@ def main():
     idir = os.path.abspath(args['<input_dir>'])
     idpr = args['<IDpr>']
     meas_type = args['<measurement_type>']
+    method = args['--method']
     lat = float(args['--lat'])
     lon = float(args['--lon'])
     alt = float(args['--altitude'])
     odir = os.path.abspath(args['--odir'])
     ofile = args['--ofile']
-    name = ""
+    name = args['--name']
     plot = args['--plot']
     figdir = os.path.abspath(args['--figdir'])
+    noclobber = args['--no_clobber']
 
     try:
         type_ = type_list[meas_type]
@@ -82,6 +88,10 @@ def main():
             else:
                 ofile = os.path.join(odir, 'Rrs_swr_' + date + '_idpr' + idpr + name + '.csv')
 
+            if noclobber and os.path.exists(ofile):
+                print('Skip processing: data already processed with "--no_clobber" set')
+                return
+
             swr = swr_process(df, wl)
             Rrs = swr.call_process(ofile)
 
@@ -93,7 +103,7 @@ def main():
                 ax.set_ylabel(r'$R_{rs}\  (sr^{-1})$')
                 ax.set_xlabel(r'Wavelength (nm)')
                 ax.set_title('ID: ' + idpr + ', ' + date + ', sza=' + str(round(df.sza.mean(), 2)))
-                fig.savefig(os.path.join(figdir, 'trios_swr_' + date + '_idpr' + idpr + '.png'), bbox_inches='tight')
+                fig.savefig(os.path.join(figdir, 'trios_swr_' + date + '_idpr' + idpr + name+'.png'), bbox_inches='tight')
                 plt.close()
 
     elif meas_type == 'awr':
@@ -113,14 +123,18 @@ def main():
             else:
                 ofile = os.path.join(odir, 'Rrs_awr_' + date + '_idpr' + idpr + name + '.csv')
 
+            if noclobber and os.path.exists(ofile):
+                print('Skip processing: data already processed with "--no_clobber" set')
+                return
+
             awr = awr_process(df, wl, name, idpr)
 
             if plot:
-                figfile = os.path.join(figdir, 'trios_awr_' + date + '_idpr' + idpr + '.png')
+                figfile = os.path.join(figdir, 'trios_awr_' + date + '_idpr' + idpr + name +'.png')
             else:
-                figfile=""
+                figfile = ""
 
-            Rrs = awr.call_process(method, ofile, vza=vza, azi=azi,plot_file=figfile)
+            Rrs = awr.call_process(method, ofile, vza=vza, azi=azi, plot_file=figfile)
 
     elif meas_type == 'iwr':
         pass

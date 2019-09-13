@@ -1,8 +1,8 @@
 Metadata-Version: 1.0
 Name: trios
-Version: 1.1.4
+Version: 1.0.0
 Summary: Package to help trios TriOS radiometer data for various above-water or in-water setups
-Home-page: https://gitlab.irstea.fr/ETL-TELQUEL/etl/tree/dev/preprocessing/trios
+Home-page: https://gitlab.irstea.fr/telquel-obs2co/insitu/trios
 Author: T. Harmel
 Author-email: tristan.harmel@gmail.com
 License: MIT
