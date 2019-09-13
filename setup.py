@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-from grs import __version__
+from trios import __version__
 
 setup(
     name='trios',
@@ -13,7 +13,7 @@ setup(
      },
     include_package_data=True,
 
-    url='https://gitlab.irstea.fr/ETL-TELQUEL/etl/tree/dev/preprocessing/trios',
+    url='https://gitlab.irstea.fr/telquel-obs2co/insitu/trios',
     license='MIT',
     author='T. Harmel',
     author_email='tristan.harmel@gmail.com',
@@ -24,7 +24,7 @@ setup(
 
     entry_points={
         'console_scripts': [
-            'trios = main:main',
+            'trios_processing = trios.main:main',
             'visu_trios = visu.data_visu:main'
         ]}
 )

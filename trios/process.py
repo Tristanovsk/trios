@@ -4,6 +4,12 @@ import scipy.optimize as so
 
 import plotly.graph_objs as go
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+plt.rcParams.update({'font.size': 18})
+
+from trios.utils.utils import plot as up
 import trios.utils.utils as uu
 from trios.utils.utils import reshape as r
 import trios.utils.auxdata as ua
@@ -11,11 +17,12 @@ from trios.config import *
 
 
 class awr_process:
-    def __init__(self, df=None, wl=None):
+    def __init__(self, df=None, wl=None, name="", idpr=""):
         self.df = df
-        self.aot = 0.1
-        self.ws = 2
         self.wl = wl
+        self.name = name
+        self.idpr = idpr
+
         self.rhosoaa_fine_file = rhosoaa_fine_file
         self.rhosoaa_coarse_file = rhosoaa_coarse_file
         self.M1999_file = M1999_file
@@ -82,63 +89,119 @@ class awr_process:
         rho_mobley = calc().spline_4d(grid, rho_, (ws, sza, vza, azi))
         return rho_mobley
 
-    # def call_process(self, vza=[40], azi=[135], ws=2, aot=0.1):
-    #     wl = self.wl
-    #     Lt = self.df.loc[:, ("Lt")]
-    #     Lsky = self.df.loc[:, ("Lsky")]
-    #     Ed = self.df.loc[:, ("Ed")]
-    #     sza = self.df.loc[:, ("sza")].values.mean()
-    #     Rrs = self.process(wl, Lt, Lsky, Ed, sza, vza, azi, ws, aot)
-    #     Rrs.columns = pd.MultiIndex.from_product([['Rrs(awr)'], self.Rrs.columns], names=['param', 'wl'])
-    #     self.Rrs = Rrs
-    #     return self.Rrs
-    #
-    # def process(self, wl, Lt, Lsky, Ed, sza, vza=[40], azi=[135], ws=[2], aot=[0.1]):
-    #     '''
-    #
-    #     :param wl:
-    #     :param Lt:
-    #     :param Lsky:
-    #     :param Ed:
-    #     :param sza:
-    #     :param vza:
-    #     :param azi:
-    #     :param ws:
-    #     :param aot:
-    #     :return:
-    #     '''
-    #
-    #     # ------------------
-    #     # filtering
-    #     # ------------------
-    #     ind_Ed, notused = calc.spectra_median_filter(Ed)
-    #     ind_sky, notused = calc.spectra_median_filter(Lsky)
-    #     ind = ind_Ed & ind_sky
-    #     Lt, Lsky, Ed, sza = Lt[ind], Lsky[ind], Ed[ind], sza[ind]
-    #
-    #     rho = self.get_rho_values(np.median(sza), vza, azi, wl=wl, ws=ws, aot=aot)
-    #     self.Rrs = (Lt - rho * Lsky.values) / Ed.values
-    #     self.Rrs.columns = pd.MultiIndex.from_product([['Rrs(awr)'], wl], names=['param', 'wl'])
-    #     return self.Rrs, rho
+    def call_process(self, method='M99', ofile="", vza=40, azi=135, ws=2, aot=0.1, plot_file=""):
 
-    @staticmethod
-    def filtering(Lt, Lsky, Ed, **kargs):
-        '''
+        wl = self.wl
+        vza, azi, ws = [vza], [azi], [ws]  # formatting for interpolation functions
 
-        :param Lt:
-        :param Lsky:
-        :param Ed:
-        :param kargs:
-        :return:
-        '''
+        # ------------------
+        # filtering
+        # ------------------
+        ind = self.filtering(self.df.Lt, self.df.Lsky, self.df.Ed)
+        clean = self.df[ind]
+        Lt, Lsky, Ed, sza = clean.Lt.values, clean.Lsky.values, clean.Ed.values, clean.sza.values
 
-        ind_Ed, notused = calc.spectra_median_filter(Ed, kargs)
-        ind_sky, notused = calc.spectra_median_filter(Lsky, kargs)
-        ind = ind_Ed & ind_sky
-        return ind
+        # -----------------------------
+        # data processing
+        # -----------------------------
+        if method == 'M99':
+            Rrs, rho = self.process_wrapper(wl, clean, clean.sza, vza=vza, azi=azi, ws=ws, aot=aot, method=method)
+        elif method == 'M15':
+            Rrs, rho = self.process_wrapper(wl, clean, clean.sza, vza=vza, azi=azi, ws=ws, aot=aot, method=method)
+        elif method == 'osoaa':
+            Rrs, rho = self.process_wrapper(wl, clean, clean.sza, vza=vza, azi=azi, ws=ws, aot=aot, method=method)
+        elif method == 'temp_opt':
+            Rrs, Rrs_opt_std = self.process_optimization(wl, Lt, Lsky, Ed, sza, vza=vza, azi=azi)
+
+        self.Rrs = Rrs
+
+        if ofile:
+            Rrs_stat = Rrs.describe()
+            Rrs_stat.columns = Rrs_stat.columns.droplevel()
+            Rrs_stat = Rrs_stat.T
+            Rrs_stat.to_csv(ofile)
+
+
+        if plot_file:
+            # ------------------
+            # plotting
+            # ------------------
+            Ltm = Lt.mean(axis=0)
+            Edm = Ed.mean(axis=0)
+
+            mpl.rcParams.update({'font.size': 18})
+            fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(20, 12))
+            fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.45)
+
+            # ---- Ed
+            ax = axs[0, 0]
+            up.add_curve(ax, wl, Ed.mean(axis=0),
+                         label=r'$L_{sky}$', c='red')  # just to put the two labels
+            up.add_curve(ax, wl, Ed.mean(axis=0), Ed.std(axis=0),
+                         label=r'$E_s$', c='black')
+            ax.set_ylabel(r'$E_{d}(0^{+})$')
+
+            # ---- Lsky
+            ax2 = ax.twinx()
+            up.add_curve(ax2, wl, Lsky.mean(axis=0), Lsky.std(axis=0),
+                         label=r'$L_{sky}$', c='red')
+            ax2.set_ylabel(r'$L_{sky}$', color='r')
+            ax2.tick_params('y', colors='r')
+            ax.set_xlabel(r'Wavelength (nm)')
+            ax.legend(loc='best', frameon=False)
+
+            # ---- Lt vs Lsurf
+            ax = axs[0, 1]
+            up.add_curve(ax, wl, Lt.mean(axis=0), Lt.std(axis=0),
+                         label=r'$L_t$', c='black')
+            up.add_curve(ax, wl, Lsky.mean(axis=0) * rho, Lsky.std(axis=0) * rho,
+                         label=method+' (' + str(round(rho, 4)) + ')', c='violet')
+            ax.set_ylabel(r'$L_t\ or L_{surf}$')
+            ax.set_xlabel(r'Wavelength (nm)')
+
+            # ---- Proportion o(Lt - Lsurf ) /Lt
+            ax = axs[0, 2]
+            up.add_curve(ax, wl, Lsky.mean(axis=0) * rho / Ltm, Lsky.std(axis=0) * rho,
+                         label=method+' (' + str(round(rho, 4)) + ')', c='violet')
+            ax.set_ylabel(r'$L_{surf}/L_t$')
+            ax.set_xlabel(r'Wavelength (nm)')
+
+            # ---- Lw
+            ax = axs[1, 0]
+            up.add_curve(ax, wl, Rrs.mean(axis=0) * Edm, Rrs.std(axis=0) * Edm,
+                         label=method+' (' + str(round(rho, 4)) + ')', c='violet')
+
+            ax.set_ylabel(r'$L_{w}\  (sr^{-1})$')
+            ax.set_xlabel(r'Wavelength (nm)')
+
+            # ---- Rrs
+            ax = axs[1, 1]
+            up.add_curve(ax, wl, Rrs.transpose().mean(axis=1), Rrs.transpose().std(axis=1),
+                         label=method+' (' + str(round(rho, 4)) + ')', c='violet')
+
+            ax.set_ylabel(r'$R_{rs}\  (sr^{-1})$')
+            ax.set_xlabel(r'Wavelength (nm)')
+            ax.set_title('azi=' + str(azi) + ', vza=' + str(vza) + ', sza=' + str(round(sza.mean(), 2)))
+
+            fig.suptitle('trios_awr ' + self.name + ' idpr' + self.idpr, fontsize=16)
+            fig.savefig(plot_file)
+            plt.close()
+
+        return self.Rrs
 
     def process_wrapper(self, wl, df, sza, vza=[40], azi=[135], ws=[2], aot=[0.1], method='M99'):
-
+        '''
+        Wrapper to call standard processing upon pandas multiindex dataframe format
+        :param wl:
+        :param df:
+        :param sza:
+        :param vza:
+        :param azi:
+        :param ws:
+        :param aot:
+        :param method:
+        :return:
+        '''
         print(sza, vza, azi, ws, aot, method)
         Rrs, rho = self.process(wl, df.Lt, df.Lsky.values, df.Ed.values, sza, vza, azi, ws, aot, method)
 
@@ -148,7 +211,7 @@ class awr_process:
 
     def process(self, wl, Lt, Lsky, Ed, sza, vza=[40], azi=[135], ws=[2], aot=[0.1], method='M99'):
         '''
-
+        Standard processing based on estimation of Lsurf based on rho-factor and Lsky
         :param wl:
         :param Lt:
         :param Lsky:
@@ -227,13 +290,35 @@ class awr_process:
             Rrs_std = np.std(Rrs_est, axis=0)
         return Rrs_bar, Rrs_std
 
+    @classmethod
+    def filtering(cls, Lt, Lsky, Ed, **kargs):
+        '''
+
+        :param Lt:
+        :param Lsky:
+        :param Ed:
+        :param kargs:
+        :return:
+        '''
+
+        ind_Ed, notused = calc.spectra_median_filter(Ed, kargs)
+        ind_sky, notused = calc.spectra_median_filter(Lsky, kargs)
+        ind = ind_Ed & ind_sky
+        return ind
+
 
 class swr_process:
     def __init__(self, df=None, wl=None, ):
         self.df = df
         self.wl = wl
 
-    def call_process(self, shade_corr=False):
+    def call_process(self, ofile="", shade_corr=False):
+        '''
+
+        :param ofile: if ofile is given, Rrs results are written in ofile
+        :param shade_corr:
+        :return:
+        '''
         wl = self.wl
         Lu = self.df.loc[:, ("Lu0+")]
         Ed = self.df.loc[:, ("Ed")]
@@ -241,6 +326,12 @@ class swr_process:
         Rrs = self.process(Lu, Ed, sza, wl, shade_corr=shade_corr)
         Rrs.columns = pd.MultiIndex.from_product([['Rrs(swr)'], Rrs.columns], names=['param', 'wl'])
         self.Rrs = Rrs
+
+        if ofile:
+            Rrs_stat = Rrs.describe()
+            Rrs_stat.columns = Rrs_stat.columns.droplevel()
+            Rrs_stat = Rrs_stat.T
+            Rrs_stat.to_csv(ofile)
         return Rrs
 
     def process(self, Lu, Ed, sza, wl, R=0.05, shade_corr=False):
@@ -350,28 +441,28 @@ class iwr_process:
                 z = (meas.prof_Edz, meas.prof_Luz)
                 y = (meas.Edz.iloc[:, idx], meas.Luz.iloc[:, idx])
 
-                sig_Edz = self.format_sigma(std.Edz.iloc[:, idx],meas.Edz.iloc[:, idx], 0.1)
-                sig_Luz = self.format_sigma(std.Luz.iloc[:, idx],meas.Luz.iloc[:, idx], 1e-3)
+                sig_Edz = self.format_sigma(std.Edz.iloc[:, idx], meas.Edz.iloc[:, idx], 0.1)
+                sig_Luz = self.format_sigma(std.Luz.iloc[:, idx], meas.Luz.iloc[:, idx], 1e-3)
 
                 sigma = (sig_Edz, sig_Luz)
-                sigma = (1,1)
+                sigma = (1, 1)
                 x0 = [1.1 * aw, meas.Ed.iloc[:, idx].mean(), 1.1 * aw, meas.Luz.iloc[0, idx]]
 
                 lsq = so.least_squares(self.cost_func, x0, args=(z, y, sigma),
-                                       bounds=([aw, 0, aw/2, 0], [np.inf, F0, np.inf, np.inf]))
+                                       bounds=([aw, 0, aw / 2, 0], [np.inf, F0, np.inf, np.inf]))
                 cost = 2 * lsq.cost  # res.cost is half sum of squares!
                 res.popt[idx, :], res.pcov[idx, ...] = lsq.x, calc().cov_from_jac(lsq.jac, cost)
 
             if mode == 'lsq':
                 # TODO formalize and do more clever things for Quality Control
                 # discard retrieval if error covariance > threshold error covariance median
-                QC_idx = res.pcov[:, 3,3] > 20 *  np.nanmedian(res.pcov[:, 3,3])
+                QC_idx = res.pcov[:, 3, 3] > 20 * np.nanmedian(res.pcov[:, 3, 3])
 
                 res.popt[QC_idx, 3] = np.nan
 
         return res
 
-    def format_sigma(self, sigma, rescale = 1, noise=0.1):
+    def format_sigma(self, sigma, rescale=1, noise=0.1):
         '''
 
         :param sigma:

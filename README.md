@@ -1,6 +1,13 @@
 # Water color TriOS package
 
-Package to help process TriOS radiometer data for various above-water or in-water setups.
+Package to process TriOS-like radiometer data for various acquisition protocols:
+- above-water radiometry
+![figure](images/above_water_system.png)
+- in-water radiometry
+- surface-water radiometry
+![figure](images/surface_water_system.png)
+
+This package also contains tools for interactive visualization of the radiometric data: 
 
 ![animated1](images/visu_trios_data.gif)
 
@@ -27,7 +34,7 @@ python setup.py install
 
 ## Running the tests
 
-...
+
 
 ## Authors
 
