@@ -41,7 +41,7 @@ python3 -m pip install --user --upgrade setuptools
 
 ### Installing
 
-First, clone `the repository`(<https://gitlab.irstea.fr/telquel-obs2co/insitu/trios>) and execute the following command in the
+First, clone [the repository](https://gitlab.irstea.fr/telquel-obs2co/insitu/trios#) and execute the following command in the
 local copy:
 
 ```
