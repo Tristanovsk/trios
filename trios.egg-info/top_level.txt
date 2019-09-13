@@ -1,5 +1,0 @@
-aux
-exe
-simulation
-trios
-visu
