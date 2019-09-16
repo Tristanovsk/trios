@@ -22,9 +22,9 @@ Package to process TriOS-like radiometer data for various acquisition protocols:
 
 
 
-This package also contains tools for interactive visualization of the radiometric data: 
+This package also contains tools for interactive visualization of the radiometric data: `trios_visual`
 
-![animated1](images/visu_trios_data.gif)
+
 
 
 ## Getting Started
@@ -97,6 +97,28 @@ trios_processing ./test/data/ 150 iwr --lat 42.30351823 --lon 9.462897398 --odir
 trios_processing ./test/data/ 150 swr --lat 42.30351823 --lon 9.462897398 --odir ./test/results --no_clobber --plot --figdir ./test/fig
 ```
 
+## Example for data visualization (work in progress)
+
+**Warning, this part is only given for development purposes, be aware that output files from `trios_processing` 
+need to be reformatted with 3-line header format as for the [example files](test/visualization).**
+
+Type `trios_visual` in a terminal:
+
+```bash
+trios_visual 
+ * Serving Flask app "trios_visual" (lazy loading)
+ * Environment: production
+   WARNING: Do not use the development server in a production environment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://127.0.0.1:8060/ (Press CTRL+C to quit)
+
+```
+Then, click and open the running link, you should get something like:
+
+![animated1](images/visu_trios_data.gif)
+
+Example files can be found in [test/visualization](test/visualization).
 
 ## Authors
 
