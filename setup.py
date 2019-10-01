@@ -20,7 +20,7 @@ setup(
     description='Package to help trios TriOS radiometer data for various above-water or in-water setups',
     # TODO update Dependent packages (distributions)
     install_requires=['cmocean','dash','dash_core_components','dash_html_components','pandas', 'scipy', 'numpy',
-                      'pyodbc', 'netCDF4', 'matplotlib', 'docopt', 'GDAL', 'python-dateutil'],
+                      'pyodbc', 'netCDF4', 'matplotlib', 'docopt', 'GDAL', 'python-dateutil','plotly'],
 
     entry_points={
         'console_scripts': [

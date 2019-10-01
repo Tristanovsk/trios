@@ -108,22 +108,28 @@ class awr_process:
         # -----------------------------
         # data processing
         # -----------------------------
-        if method == 'M99':
-            Rrs, rho = self.process_wrapper(wl, clean, clean.sza, vza=vza, azi=azi, ws=ws, aot=aot, method=method)
-        elif method == 'M15':
-            Rrs, rho = self.process_wrapper(wl, clean, clean.sza, vza=vza, azi=azi, ws=ws, aot=aot, method=method)
-        elif method == 'osoaa':
-            Rrs, rho = self.process_wrapper(wl, clean, clean.sza, vza=vza, azi=azi, ws=ws, aot=aot, method=method)
-        elif method == 'temp_opt':
-            Rrs, rho, Rrs_opt, Rrs_opt_std = self.process_optimization(wl, Lt, Lsky, Ed, sza, vza=vza, azi=azi)
+        Rrs, rho = self.process_wrapper(wl, clean, clean.sza, vza=vza, azi=azi, ws=ws, aot=aot, method=method)
+        # if method == 'M99':
+        #
+        # elif method == 'M15':
+        #     Rrs, rho = self.process_wrapper(wl, clean, clean.sza, vza=vza, azi=azi, ws=ws, aot=aot, method=method)
+        # elif method == 'osoaa':
+        #     Rrs, rho = self.process_wrapper(wl, clean, clean.sza, vza=vza, azi=azi, ws=ws, aot=aot, method=method)
+        # elif method == 'temp_opt':
+        #     Rrs, rho, Rrs_opt, Rrs_opt_std = self.process_optimization(wl, Lt, Lsky, Ed, sza, vza=vza, azi=azi)
 
-        self.Rrs = Rrs
+        self.Rrs = Rrs.__deepcopy__()
+        self.Rrs['rho'] = rho
+        if method == 'temp_opt':
+            rho = np.nanmedian(rho)
 
         if ofile:
+            Rrs_df = pd.concat([self.df, self.Rrs], axis=1)
+            Rrs_df.to_csv(ofile)
             Rrs_stat = Rrs.describe()
             Rrs_stat.columns = Rrs_stat.columns.droplevel()
             Rrs_stat = Rrs_stat.T
-            Rrs_stat.to_csv(ofile)
+            # Rrs_stat.to_csv(ofile)
 
         if plot_file:
             # ------------------
@@ -205,11 +211,16 @@ class awr_process:
         :param method:
         :return:
         '''
+
         print(sza, vza, azi, ws, aot, method)
-        Rrs, rho = self.process(wl, df.Lt, df.Lsky.values, df.Ed.values, sza, vza, azi, ws, aot, method)
+        if method == 'temp_opt':
+            Rrs, rho, Rrs_opt, Rrs_opt_std = \
+                self.process_optimization(wl, df.Lt.values, df.Lsky.values, df.Ed.values, sza, vza=vza, azi=azi)
+        else:
+            Rrs, rho = self.process(wl, df.Lt, df.Lsky.values, df.Ed.values, sza, vza, azi, ws, aot, method)
 
         Rrs.columns = pd.MultiIndex.from_product([['Rrs'], wl], names=['param', 'wl'])
-
+        Rrs.index = df.Lt.index
         return Rrs, rho
 
     def process(self, wl, Lt, Lsky, Ed, sza, vza=[40], azi=[135], ws=[2], aot=[0.1], method='M99'):
@@ -272,7 +283,7 @@ class awr_process:
         # non-linear optimization
         # -----------------------------
 
-        for j in range(10):
+        for j in range(1):
             x_est = []
             res = []
             Rrs_est = []
@@ -289,11 +300,13 @@ class awr_process:
                 Rrs_est.append(Rrs)
                 rho_est.append(rho)
                 print(res_lsq.x, res_lsq.cost)
+
             Rrs_bar = np.mean(Rrs_est, axis=0)
             Rrs_std = np.std(Rrs_est, axis=0)
             Rrs_est = pd.DataFrame(Rrs_est)
             Rrs_est.columns = pd.MultiIndex.from_product([['Rrs'], wl], names=['param', 'wl'])
-        return Rrs_est, np.mean(rho_est, axis=0), Rrs_bar, Rrs_std
+
+        return Rrs_est, rho_est, Rrs_bar, Rrs_std  # np.mean(rho_est, axis=0), Rrs_bar, Rrs_std
 
     @classmethod
     def filtering(cls, Lt, Lsky, Ed, **kargs):
@@ -306,9 +319,12 @@ class awr_process:
         :return:
         '''
 
-        ind_Ed, notused = calc.spectra_median_filter(Ed, kargs)
-        ind_sky, notused = calc.spectra_median_filter(Lsky, kargs)
-        ind = ind_Ed & ind_sky
+        ind_Ed, notused = filters.spectra_median_filter(Ed, *kargs)
+        ind_sky, notused = filters.spectra_median_filter(Lsky, *kargs)
+
+        ind_surf, notused = filters.spectra_minimum_filter(Lt)
+        print(ind_Ed.shape, ind_sky.shape, ind_surf.shape)
+        ind = ind_Ed & ind_sky & ind_surf
         return ind
 
 
@@ -333,10 +349,12 @@ class swr_process:
         self.Rrs = Rrs
 
         if ofile:
+            Rrs_df = pd.concat([self.df, Rrs], axis=1)
+            Rrs_df.to_csv(ofile)
             Rrs_stat = Rrs.describe()
             Rrs_stat.columns = Rrs_stat.columns.droplevel()
             Rrs_stat = Rrs_stat.T
-            Rrs_stat.to_csv(ofile)
+            # Rrs_stat.to_csv(ofile)
         return Rrs
 
     def process(self, Lu, Ed, sza, wl, R=0.05, shade_corr=False):
@@ -698,8 +716,8 @@ class iwr_process:
 
                 sigma = (sig_Edz, sig_Luz)
                 sigma = (1, 1)
-                x0 = [1.1 * aw, min(F0,meas.Ed.iloc[:, idx].mean()), 1.1 * aw, meas.Luz.iloc[0, idx]]
-                print('x0',wl,F0,aw, x0)
+                x0 = [1.1 * aw, min(F0, meas.Ed.iloc[:, idx].mean()), 1.1 * aw, meas.Luz.iloc[0, idx]]
+                print('x0', wl, F0, aw, x0)
                 lsq = so.least_squares(self.cost_func, x0, args=(z, y, sigma),
                                        bounds=([aw, 0, aw / 2, 0], [np.inf, F0, np.inf, np.inf]))
                 cost = 2 * lsq.cost  # res.cost is half sum of squares!
@@ -825,6 +843,49 @@ class self_shading:
         return eps
 
 
+class filters:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def spectra_median_filter(cls, spectra, threshold=0.1):
+        '''
+        Get indices of the spectra whose values are close to median in the acquisition sequence
+        :param spectra: 2D pandas data frame
+        :param threshold: defines the interval of retained spectra (median +/- threhold * median)
+        :return: boolean indices, array of data within interval median +/- threshold
+        '''
+
+        spec = spectra.sum(axis=1)
+        med = spec.median()
+        ind = np.abs(1 - spec / med) < threshold
+        return ind, spectra[ind]
+
+    @classmethod
+    def spectra_minimum_filter(cls, spectra, idxs=None, cutoff=0.2, threshold=0.1):
+        '''
+        Get indices of the spectra whose values are minimum in the acquisition sequence
+        :param spectra: 2D pandas data frame
+        :param idxs: indices on which the filter is applied (e.g., select only IR wavelengths)
+        :param cutoff: percentage of minimum spectra used to get the median value
+        :param threshold: defines the interval of retained spectra (median +/- threhold * median)
+        :return: boolean indices, array of data within interval minimum to minimum * (1 + threshold)
+        '''
+        print(spectra.shape)
+        if idxs == None:
+            idxs = np.arange(spectra.shape[1])
+
+        spec = np.nansum(spectra.values[:, idxs],axis=1)
+        N = spec.shape[0]
+        idx_num = int(cutoff * N)
+        idx_min = spec.argsort()[:idx_num]
+
+        med = np.nanmedian(spec[idx_min])
+        ind = np.abs(1 - spec / med) < threshold
+
+        return ind, spectra[ind]
+
+
 class calc:
     def __init__(self):
         pass
@@ -882,19 +943,6 @@ class calc:
         :return: sub-surface angle in deg
         '''
         return np.degrees(np.arcsin(np.sin(np.radians(angle_air)) / n))
-
-    @staticmethod
-    def spectra_median_filter(spectra, threshold=0.1):
-        '''
-        
-        :param series: pandas object
-        :param threshold: relative value of median 
-        :return: boolean indices, array of data within interval median +/- threshold
-        '''
-        spec = spectra.sum(axis=1)
-        med = spec.median()
-        ind = np.abs(1 - spec / med) < 0.1
-        return ind, spectra[ind]
 
     def spline_2d(self, gin, arr, gout):
         '''
