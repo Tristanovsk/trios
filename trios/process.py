@@ -82,6 +82,8 @@ class awr_process:
         :param ws:
         :return:
         '''
+        # Warning SZA set to 90 if Sun below the horizon
+        #sza[sza>90]=90
 
         rhodf = rhodf.query('sza<75 & vza >0')
         rhodf.index = rhodf.index.remove_unused_levels()
@@ -102,7 +104,7 @@ class awr_process:
         # filtering
         # ------------------
         ind = self.filtering(self.df.Lt, self.df.Lsky, self.df.Ed)
-        clean = self.df[ind]
+        clean = self.df #[ind]
         Lt, Lsky, Ed, sza = clean.Lt.values, clean.Lsky.values, clean.Ed.values, clean.sza.values
 
         # -----------------------------

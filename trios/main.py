@@ -2,9 +2,10 @@
 
 Usage:
   trios_processing <input_dir> <IDpr> <measurement_type> --lat <lat> --lon <lon> \
+   [--data_files=<filenames>] \
    [--altitude=alt] [--ofile <ofile>] [--odir <odir>] [--plot] [--figdir <figdir>] \
    [--name <name>] [--method <method>] [--no_clobber] \
-   [--vza <vza>] [--azi <azi>] [--ws <ws>] [--aot <aot>]
+   [--vza <vza>] [--azi <azi>] [--ws <ws>] [--aot <aot>] [--utc_conv <hours>]
   trios_processing -h | --help
   trios_processing -v | --version
 
@@ -35,6 +36,8 @@ Options:
            [default: 2]
   --aot aot  Aerosol optical thickness at 550 nm (applicable for awr methods: osoaa)
              [default: 0.1]
+  --utc_conv hours   Use if data given in local time.
+                    Decimal hours to be added to local time to get UTC [default: 0]
   --no_clobber     Do not process  <input_dir> <IDpr> files if <output_file> already exists.
 '''
 
@@ -63,6 +66,7 @@ def main():
 
     idir = os.path.abspath(args['<input_dir>'])
     idpr = args['<IDpr>']
+    filenames = args['--data_files']
     meas_type = args['<measurement_type>']
     method = args['--method']
     lat = float(args['--lat'])
@@ -78,15 +82,17 @@ def main():
     vza = float(args['--vza'])
     ws = float(args['--ws'])
     aot = float(args['--aot'])
+    utc_conv =float(args['--utc_conv'])
 
     try:
         type_ = type_list[meas_type]
     except:
         raise SyntaxError('ERROR: bad request for <measurement_type>, should be either awr, iwr or swr')
 
-    files = glob.glob(os.path.join(idir, type_ + '*' + idpr + '*.csv'))
-    if not files:
-        raise IOError('No file available for IDpr ' + idpr + ' in ' + idir + ' for ' + type_description[meas_type])
+    if filenames is None:
+        files = glob.glob(os.path.join(idir, type_ + '*' + idpr + '*.csv'))
+        if not files:
+            raise IOError('No file available for IDpr ' + idpr + ' in ' + idir + ' for ' + type_description[meas_type])
 
     if meas_type == 'swr':
         # -----------------------------------------------
@@ -124,10 +130,15 @@ def main():
         # -----------------------------------------------
         #   AWR processing
         # -----------------------------------------------
+        if filenames is None:
+            uawr = u.awr_data(idpr, files)
+        else:
+            Edf,Lskyf,Ltf = [os.path.join(idir,f) for f in filenames.split(' ')]
+            print('process files Ed: '+ Edf+', Lsky: '+Lskyf+', Lt: '+Ltf )
+            uawr = u.awr_data(idpr, Edf=Edf, Lskyf=Lskyf, Ltf=Ltf)
 
-        uawr = u.awr_data(idpr, files)
         if uawr.Edf:
-            df, wl = uawr.reader(lat, lon, alt)
+            df, wl = uawr.reader(lat, lon, alt, utc_conv=utc_conv)
             date = df.index[0].date().__str__()
             if ofile:
                 ofile = os.path.join(odir, ofile)

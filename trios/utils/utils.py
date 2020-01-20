@@ -4,21 +4,31 @@ from scipy.interpolate import interp1d
 from trios.utils.sunposition import sunpos
 from trios.config import *
 
+
 class awr_data:
     '''
     Above-water radiometry
     '''
 
-    def __init__(self, idpr=None, files=None):
+    def __init__(self, idpr=None, files=None, Edf=None, Lskyf=None, Ltf=None):
         # ''' get file names for Ed, Lsky and Lt data'''
-        self.file = list(filter(lambda x: 'idpr' + idpr in x, files))
-        file = self.file
-        self.Edf = list(filter(lambda x: 'Ed' in x, file))
-        self.Lskyf = list(filter(lambda x: 'Lsky' in x, file))
-        self.Ltf = list(filter(lambda x: 'Lt' in x, file))
+        if not files is None:
+            self.file = list(filter(lambda x: 'idpr' + idpr in x, files))
+            file = self.file
+            self.Edf = list(filter(lambda x: 'Ed' in x, file))
+            self.Lskyf = list(filter(lambda x: 'Lsky' in x, file))
+            self.Ltf = list(filter(lambda x: 'Lt' in x, file))
+
+        elif all(v is not None for v in [Edf, Lskyf, Ltf]):
+            self.Edf = Edf
+            self.Lskyf = Lskyf
+            self.Ltf = Ltf
+        else:
+            raise SyntaxError('ERROR: must specify `files` or `(Edf, Lskyf, Ltf)` variables')
+
         self.idpr = idpr
 
-    def reader(self, lat, lon, alt=0, name='', index_idx=[0]):
+    def reader(self, lat, lon, alt=0, name='', index_idx=[0], utc_conv=0):
         '''
         Read above-water data files for a given acquisition series (idpr),
         merge the different data types:
@@ -34,6 +44,7 @@ class awr_data:
         :param lon: longitude (decimal)
         :param alt: altitude (m)
         :param idpr: ID of the acquisition series
+        :param utc_conv: decimal hours added to convert local time into UTC
         :return:
         '''
 
@@ -41,30 +52,32 @@ class awr_data:
 
         # ''' read files with pandas format '''
         d = data(index_idx)
-        Ed, wl_Ed = d.load_csv(self.Edf)
-        Lsky, wl_Lsky = d.load_csv(self.Lskyf)
-        Lt, wl_Lt = d.load_csv(self.Ltf)
+        Ed, wl_Ed = d.load_csv(self.Edf, utc_conv=utc_conv)
+        Lsky, wl_Lsky = d.load_csv(self.Lskyf, utc_conv=utc_conv)
+        Lt, wl_Lt = d.load_csv(self.Ltf, utc_conv=utc_conv)
 
         # ''' interpolate Ed, Lt and Lsky data upon common wavelength'''
         wl = wl_common
 
         intEd = interp1d(wl_Ed, Ed.values, fill_value='extrapolate')(wl)
-        newEd = pd.DataFrame(index=Ed.index,columns=pd.MultiIndex.from_tuples(zip(['Ed'] * len(wl), wl),
-                             names=['param', 'wl']),data=intEd)
+        newEd = pd.DataFrame(index=Ed.index, columns=pd.MultiIndex.from_tuples(zip(['Ed'] * len(wl), wl),
+                                                                               names=['param', 'wl']), data=intEd)
 
         intLt = interp1d(wl_Lt, Lt.values, fill_value='extrapolate')(wl)
-        newLt = pd.DataFrame(index=Lt.index,columns=pd.MultiIndex.from_tuples(zip(['Lt'] * len(wl), wl),
-                             names=['param', 'wl']),data=intLt)
+        newLt = pd.DataFrame(index=Lt.index, columns=pd.MultiIndex.from_tuples(zip(['Lt'] * len(wl), wl),
+                                                                               names=['param', 'wl']), data=intLt)
 
         intLsky = interp1d(wl_Lsky, Lsky.values, fill_value='extrapolate')(wl)
         newLsky = pd.DataFrame(index=Lsky.index, columns=pd.MultiIndex.from_tuples(zip(['Lsky'] * len(wl), wl),
-                               names=['param', 'wl']), data=intLsky)
+                                                                                   names=['param', 'wl']), data=intLsky)
 
         # merge sensor data on time
         df = pd.merge_asof(newLt, newEd, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
                            direction="nearest")
         df = pd.merge_asof(df, newLsky, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
                            direction="nearest")
+        # Convert to UTC time
+        df.index = df.index  # + pd.Timedelta(hours=3)
 
         # add solar angle data and idpr
         # compute solar angle (mean between fisrt and last aqcuisition time
@@ -123,15 +136,15 @@ class iwr_data:
         Edz, wl_Edz = d.load_csv(self.Edzf)
         Luz, wl_Luz = d.load_csv(self.Luzf)
 
-        #mask negative values TODO save number of discarded data
-        Ed[Ed < 0] = 0 #.mask(Ed<0,inplace=True)
-        Edz[Edz < 0] = 0 #.mask(Edz<0,inplace=True)
-        Luz[Luz < 0] = 0 #.mask(Luz<0,inplace=True)
+        # mask negative values TODO save number of discarded data
+        Ed[Ed < 0] = 0  # .mask(Ed<0,inplace=True)
+        Edz[Edz < 0] = 0  # .mask(Edz<0,inplace=True)
+        Luz[Luz < 0] = 0  # .mask(Luz<0,inplace=True)
 
         # copy depth data to Ed frame on date index
         # Ed.index = Ed.index.droplevel(level=1)
 
-        #''' interpolate Ed, Edz and Luz data upon common wavelength'''
+        # ''' interpolate Ed, Edz and Luz data upon common wavelength'''
         wl = wl_common
         intEd = interp1d(wl_Ed, Ed.values, fill_value='extrapolate')(wl)
         newEd = pd.DataFrame(index=Ed.index.get_level_values(0),
@@ -140,11 +153,11 @@ class iwr_data:
 
         intEdz = interp1d(wl_Edz, Edz.values, fill_value='extrapolate')(wl)
         newEdz = pd.DataFrame(index=Edz.index, columns=pd.MultiIndex.from_tuples(list(zip(['Edz'] * len(wl), wl)),
-                              names=['param', 'wl']), data=intEdz)
+                                                                                 names=['param', 'wl']), data=intEdz)
 
         intLuz = interp1d(wl_Luz, Luz.values, fill_value='extrapolate')(wl)
         newLuz = pd.DataFrame(index=Luz.index, columns=pd.MultiIndex.from_tuples(list(zip(['Luz'] * len(wl), wl)),
-                              names=['param', 'wl']), data=intLuz)
+                                                                                 names=['param', 'wl']), data=intLuz)
 
         print('read merge ok')
         # correct depth data for sensor to sensor distance
@@ -238,7 +251,7 @@ class swr_data:
                              data=intEd)
         intLu0 = interp1d(wl_Lu0, Lu0.values, fill_value='extrapolate')(wl)
         newLu0 = pd.DataFrame(index=Lu0.index, columns=pd.MultiIndex.from_tuples(zip(['Lu0+'] * len(wl), wl),
-                             names=['param', 'wl']), data=intLu0)
+                                                                                 names=['param', 'wl']), data=intLu0)
 
         # merge sensor data on time
         df = pd.merge_asof(newLu0, newEd, left_index=True, right_index=True, tolerance=pd.Timedelta("2 seconds"),
@@ -270,19 +283,23 @@ class data:
         self.index_idx = index_idx
         pass
 
-    def load_csv(self, file):
+    def load_csv(self, file, utc_conv=0):
         print(file)
-        dateparse = lambda x: pd.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
-        if len(file) > 1:
+        # dateparse = lambda x: pd.datetime.strptime(x, '%Y-%m-%d %H:%M:%S') + pd.to_timedelta(utc_conv, 'h')
+        if len(file) > 1 and not isinstance(file, str):
             print('Warning! Multiple files found but only one expected, trios first file of the list:')
             print(file)
-        file_ = file[0]
+            file_ = file[0]
+        else:
+            file_ = file
         # df = pd.read_csv(file, date_parser=dateparse, sep=';', index_col=0, na_values=['-NAN'])
-        df = pd.read_csv(file_, sep=';', na_values=['-NAN'])
+        df = pd.read_csv(file_, sep=';|,', na_values=['-NAN'], engine='python')
 
         # get list of indexes
         col = df.columns.values[self.index_idx]
-        df[col[0]] = pd.to_datetime(df[col[0]])
+
+        # local to UTC conversion
+        df[col[0]] = pd.to_datetime(df[col[0]]) + pd.to_timedelta(utc_conv, 'h')
 
         df.set_index(col.tolist(), inplace=True)
         df = df.dropna(axis=1, how='all').dropna(axis=0, how='all')
@@ -309,14 +326,15 @@ class reshape:
         arr[tuple(df.index.codes)] = df[name].values.flat
         return arr
 
+
 class plot:
     def __init__(self):
         pass
 
     @staticmethod
-    def add_curve(ax, x, mean, std=None, c='red', label='',**kwargs):
+    def add_curve(ax, x, mean, std=None, c='red', label='', **kwargs):
         ax.plot(x, mean, linestyle='solid', c=c, lw=2.5,
-                alpha=0.8, label=label,*kwargs)
+                alpha=0.8, label=label, *kwargs)
         if np.any(std):
             ax.fill_between(x,
                             mean - std,
