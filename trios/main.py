@@ -2,7 +2,7 @@
 
 Usage:
   trios_processing <input_dir> <IDpr> <measurement_type> --lat <lat> --lon <lon> \
-   [--data_files=<filenames>] \
+   [--data_files=<filenames>] [--format=<file_format>] \
    [--altitude=alt] [--ofile <ofile>] [--odir <odir>] [--plot] [--figdir <figdir>] \
    [--name <name>] [--method <method>] [--no_clobber] \
    [--vza <vza>] [--azi <azi>] [--ws <ws>] [--aot <aot>] [--utc_conv <hours>]
@@ -16,6 +16,11 @@ Options:
   <input_dir>  Input directory where the trios.csv files are located
   <IDpr>  IDpr label of the measurement sequence to process
   <measurement_type>   awr, swr, iwr
+  --data_files <filenames>  File names (space separated) of the files to be processed in <input_dir>
+  --format <file_format>  File suffix which can be recognized
+                          ('csv': for pre processed files given in csv format;
+                           'mlb': for files given by Trios software)
+                          [default: csv]
   --lat <lat>  Latitude in decimal degrees
   --lon <lon>  Longitude in decimal degrees
 
@@ -67,6 +72,7 @@ def main():
     idir = os.path.abspath(args['<input_dir>'])
     idpr = args['<IDpr>']
     filenames = args['--data_files']
+    file_format = args['--format']
     meas_type = args['<measurement_type>']
     method = args['--method']
     lat = float(args['--lat'])
@@ -130,6 +136,7 @@ def main():
         # -----------------------------------------------
         #   AWR processing
         # -----------------------------------------------
+
         if filenames is None:
             uawr = u.awr_data(idpr, files)
         else:
@@ -137,8 +144,8 @@ def main():
             print('process files Ed: '+ Edf+', Lsky: '+Lskyf+', Lt: '+Ltf )
             uawr = u.awr_data(idpr, Edf=Edf, Lskyf=Lskyf, Ltf=Ltf)
 
-        if uawr.Edf:
-            df, wl = uawr.reader(lat, lon, alt, utc_conv=utc_conv)
+        try:
+            df, wl = uawr.reader(lat, lon, alt, utc_conv=utc_conv, file_format=file_format)
             date = df.index[0].date().__str__()
             if ofile:
                 ofile = os.path.join(odir, ofile)
@@ -156,6 +163,8 @@ def main():
 
             awr = awr_process(df, wl, name, idpr)
             Rrs = awr.call_process(method, ofile, vza=vza, azi=azi, ws=ws, aot=aot, plot_file=figfile)
+        except:
+            raise('Problem for: '+ ofile)
 
     elif meas_type == 'iwr':
         # -----------------------------------------------

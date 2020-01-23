@@ -135,10 +135,16 @@ class awr_process:
 
         if plot_file:
             # ------------------
-            # plotting
+            # plotting envelope
             # ------------------
             Ltm = Lt.mean(axis=0)
             Edm = Ed.mean(axis=0)
+
+            def add_envelope(ax,wl,values,label='',**kwargs):
+                up.add_curve(ax, wl, values.mean(axis=0), label=label, c='black',**kwargs)
+                ax.fill_between(wl,np.quantile(values,0.05, axis=0),np.quantile(values,0.95, axis=0), alpha=0.25, color='grey')
+                ax.fill_between(wl,np.quantile(values,0.25, axis=0),np.quantile(values,0.75, axis=0), alpha=0.35, color='red')
+
 
             mpl.rcParams.update({'font.size': 18})
             fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(20, 12))
@@ -146,55 +152,60 @@ class awr_process:
 
             # ---- Ed
             ax = axs[0, 0]
-            up.add_curve(ax, wl, Ed.mean(axis=0),
-                         label=r'$L_{sky}$', c='red')  # just to put the two labels
-            up.add_curve(ax, wl, Ed.mean(axis=0), Ed.std(axis=0),
-                         label=r'$E_s$', c='black')
-            ax.set_ylabel(r'$E_{d}(0^{+})$')
+            add_envelope(ax,wl,Ed,label=r'$E_s$')
+            #up.add_curve(ax, wl, Ed.mean(axis=0), Ed.std(axis=0), label=r'$E_s$', c='black')
+            ax.set_ylabel(r'$E_{d}(0^{+})\ (mW\ m^{-2}\ nm^{-1})$')
+            ax.set_xlabel(r'Wavelength (nm)')
+            ax.legend(loc='best', frameon=False)
 
             # ---- Lsky
-            ax2 = ax.twinx()
-            up.add_curve(ax2, wl, Lsky.mean(axis=0), Lsky.std(axis=0),
-                         label=r'$L_{sky}$', c='red')
-            ax2.set_ylabel(r'$L_{sky}$', color='r')
-            ax2.tick_params('y', colors='r')
+            ax = axs[0, 1] #ax2 = ax.twinx()
+            add_envelope(ax,wl,Lsky,label=r'$L_{sky}$')
+
+            ax.set_ylabel(r'$L_{sky}\ (mW\ m^{-2}\ nm^{-1}\ sr^{-1})$')#, color='r')
+            #ax.tick_params('y', colors='r')
             ax.set_xlabel(r'Wavelength (nm)')
             ax.legend(loc='best', frameon=False)
 
             # ---- Lt vs Lsurf
-            ax = axs[0, 1]
-            up.add_curve(ax, wl, Lt.mean(axis=0), Lt.std(axis=0),
-                         label=r'$L_t$', c='black')
-            up.add_curve(ax, wl, Lsky.mean(axis=0) * rho, Lsky.std(axis=0) * rho,
-                         label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
-            ax.set_ylabel(r'$L_t\ or L_{surf}$')
+            ax = axs[0, 2]
+            add_envelope(ax,wl,Lt,label=r'$L_t$')
+            #up.add_curve(ax, wl, Lt.mean(axis=0), Lt.std(axis=0), label=r'$L_t$', c='black')
+            add_envelope(ax,wl,Lsky* rho,label=r'$L_{surf}$',linestyle=':')
+            # up.add_curve(ax, wl, Lsky.mean(axis=0) * rho, Lsky.std(axis=0) * rho,
+            #              label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
+            ax.set_ylabel(r'$L_t\ or\ L_{surf}\ (mW\ m^{-2}\ nm^{-1}\ sr^{-1})$')
             ax.set_xlabel(r'Wavelength (nm)')
+            ax.legend(loc='best', frameon=False)
 
             # ---- Proportion o(Lt - Lsurf ) /Lt
-            ax = axs[0, 2]
-            up.add_curve(ax, wl, Lsky.mean(axis=0) * rho / Ltm, Lsky.std(axis=0) * rho,
-                         label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
+            ax = axs[1, 0]
+            add_envelope(ax,wl,Lsky * rho / Ltm,label=r'$L_{surf}/L_t$')
+            # up.add_curve(ax, wl, Lsky.mean(axis=0) * rho / Ltm, Lsky.std(axis=0) * rho,
+            #              label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
             ax.set_ylabel(r'$L_{surf}/L_t$')
             ax.set_xlabel(r'Wavelength (nm)')
 
             # ---- Lw
-            ax = axs[1, 0]
-            up.add_curve(ax, wl, Rrs.mean(axis=0) * Edm, Rrs.std(axis=0) * Edm,
-                         label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
+            ax = axs[1, 1]
+            add_envelope(ax,wl,Rrs* Edm)
+            # up.add_curve(ax, wl, Rrs.mean(axis=0) * Edm, Rrs.std(axis=0) * Edm,
+            #              label=method + ' (' + str(round(rho, 4)) + ')', c='blue')
 
-            ax.set_ylabel(r'$L_{w}\  (sr^{-1})$')
+            ax.set_ylabel(r'$L_{w}\ (mW\ m^{-2}\ nm^{-1}\ sr^{-1})$')
             ax.set_xlabel(r'Wavelength (nm)')
 
             # ---- Rrs
-            ax = axs[1, 1]
-            up.add_curve(ax, wl, Rrs.transpose().mean(axis=1), Rrs.transpose().std(axis=1),
-                         label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
-
+            ax = axs[1, 2]
+            add_envelope(ax,wl,Rrs)
+            # up.add_curve(ax, wl, Rrs.transpose().mean(axis=1), Rrs.transpose().std(axis=1),
+            #              label=method + ' (' + str(round(rho, 4)) + ')', c='blue')
             ax.set_ylabel(r'$R_{rs}\  (sr^{-1})$')
             ax.set_xlabel(r'Wavelength (nm)')
             ax.set_title('azi=' + str(azi) + ', vza=' + str(vza) + ', sza=' + str(round(sza.mean(), 2)))
 
-            fig.suptitle('trios_awr ' + self.name + ' idpr' + self.idpr, fontsize=16)
+            fig.suptitle('trios_awr ' + self.name + ' idpr' + self.idpr, fontsize=18)
+            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
             fig.savefig(plot_file)
             plt.close()
 

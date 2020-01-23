@@ -1,4 +1,5 @@
 import pandas as pd
+import datetime as dt
 from scipy.interpolate import interp1d
 
 from trios.utils.sunposition import sunpos
@@ -28,7 +29,7 @@ class awr_data:
 
         self.idpr = idpr
 
-    def reader(self, lat, lon, alt=0, name='', index_idx=[0], utc_conv=0):
+    def reader(self, lat, lon, alt=0, name='', index_idx=[0], utc_conv=0, file_format='csv'):
         '''
         Read above-water data files for a given acquisition series (idpr),
         merge the different data types:
@@ -48,13 +49,14 @@ class awr_data:
         :return:
         '''
 
-        df = pd.DataFrame()
 
         # ''' read files with pandas format '''
-        d = data(index_idx)
-        Ed, wl_Ed = d.load_csv(self.Edf, utc_conv=utc_conv)
-        Lsky, wl_Lsky = d.load_csv(self.Lskyf, utc_conv=utc_conv)
-        Lt, wl_Lt = d.load_csv(self.Ltf, utc_conv=utc_conv)
+
+        d = data(index_idx, file_type=file_format)
+
+        Ed, wl_Ed = d.load_file(self.Edf, utc_conv=utc_conv)
+        Lsky, wl_Lsky = d.load_file(self.Lskyf, utc_conv=utc_conv)
+        Lt, wl_Lt = d.load_file(self.Ltf, utc_conv=utc_conv)
 
         # ''' interpolate Ed, Lt and Lsky data upon common wavelength'''
         wl = wl_common
@@ -277,11 +279,19 @@ class fit:
 
 
 class data:
-    def __init__(self, index_idx=[0]):
+    def __init__(self, index_idx=[0], file_type='csv'):
         # first position should be datetime index
         # followed by the other parameters used for indexing (e.g. azimuth, view angle)
         self.index_idx = index_idx
+        self.file_type = file_type
         pass
+
+    def load_file(self, file, utc_conv=0):
+
+        if self.file_type == 'csv':
+            return self.load_csv(file, utc_conv=utc_conv)
+        elif self.file_type == 'mlb':
+            return self.load_mlb(file, utc_conv=utc_conv)
 
     def load_csv(self, file, utc_conv=0):
         print(file)
@@ -302,6 +312,37 @@ class data:
         df[col[0]] = pd.to_datetime(df[col[0]]) + pd.to_timedelta(utc_conv, 'h')
 
         df.set_index(col.tolist(), inplace=True)
+        df = df.dropna(axis=1, how='all').dropna(axis=0, how='all')
+        df.columns = df.columns.astype('float')  # str.extract('(\d+)',expand=False).astype('float')
+        # resort to get data in increasing time order
+        df.sort_index(inplace=True)
+        wl = df.columns
+        return df, wl
+
+    def load_mlb(self, file, utc_conv=0):
+
+        print(file)
+        # dateparse = lambda x: pd.datetime.strptime(x, '%Y-%m-%d %H:%M:%S') + pd.to_timedelta(utc_conv, 'h')
+        if len(file) > 1 and not isinstance(file, str):
+            print('Warning! Multiple files found but only one expected, trios first file of the list:')
+            print(file)
+            file_ = file[0]
+        else:
+            file_ = file
+        # df = pd.read_csv(file, date_parser=dateparse, sep=';', index_col=0, na_values=['-NAN'])
+        header = pd.read_csv(file_, sep='\s+', skiprows=19, nrows=1)
+        df = pd.read_csv(file_, sep='\s+', na_values=['-NAN'], engine='python', skiprows=21, header=None)
+        df.columns = header.values[0]
+
+        # get list of indexes
+        col = self.index_idx[0]
+        # local to UTC conversion
+        df.iloc[:, col] = pd.TimedeltaIndex(df.iloc[:, col], unit='d') + dt.datetime(1899, 12, 30) \
+                          + pd.to_timedelta(utc_conv, 'h')
+        df.set_index(df.iloc[:, col], inplace=True)
+        # keep spectra/radiometric data only:
+        df = df.loc[:, df.columns.notnull()]
+
         df = df.dropna(axis=1, how='all').dropna(axis=0, how='all')
         df.columns = df.columns.astype('float')  # str.extract('(\d+)',expand=False).astype('float')
         # resort to get data in increasing time order
@@ -333,8 +374,8 @@ class plot:
 
     @staticmethod
     def add_curve(ax, x, mean, std=None, c='red', label='', **kwargs):
-        ax.plot(x, mean, linestyle='solid', c=c, lw=2.5,
-                alpha=0.8, label=label, *kwargs)
+        ax.plot(x, mean,  c=c, lw=2.5,
+                alpha=0.8, label=label, **kwargs)
         if np.any(std):
             ax.fill_between(x,
                             mean - std,

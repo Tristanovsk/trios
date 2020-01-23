@@ -2,11 +2,8 @@
 import sys, os
 import re
 import datetime as dt
-import julian
-dublin_julian_day = 2415020
+import pandas as pd
 
-
-djd = 42349.44914
-jd = djd + dublin_julian_day
-dt = julian.from_jd(jd)
-print(dt)
+excel_jd = [42877.57571]# 42349.44914
+date = pd.TimedeltaIndex(excel_jd, unit='d') + dt.datetime(1899,12,30)
+print(date)
