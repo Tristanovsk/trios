@@ -11,6 +11,9 @@ import glob
 import subprocess
 from multiprocessing import Pool
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+mpl.rcParams.update({'font.size': 18})
 import plotly.graph_objects as go
 import plotly.express as px
 import plotly.offline as po
@@ -197,7 +200,7 @@ def process(infofile, method = 'M99', ncore=10):
                        ' awr --lat ' + lat + ' --lon ' + lon + ' --name _' + method + \
                        ' --data_files "' + Edf + ' ' + Lskyf + ' ' + Ltf + \
                        '" --odir ' + odir_ + ' --utc_conv=' + utc_conv + \
-                       ' --method ' + method + ' --plot --figdir ' + figdir + ' --format mlb')
+                       ' --method ' + method + ' --plot --figdir ' + figdir + ' --format mlb --no_clobber')
 
     with Pool(processes=ncore) as pool:
 
@@ -271,3 +274,6 @@ for method in ['M99','osoaa','temp_opt']:
     process(infofile, method=method, ncore=10)
 
 post_process(create_stat_file=True)
+
+#----
+# END
