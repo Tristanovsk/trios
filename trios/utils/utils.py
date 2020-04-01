@@ -301,7 +301,7 @@ class data:
             print(file)
             file_ = file[0]
         else:
-            file_ = file
+            file_ = file[0]
         # df = pd.read_csv(file, date_parser=dateparse, sep=';', index_col=0, na_values=['-NAN'])
         df = pd.read_csv(file_, sep=';|,', na_values=['-NAN'], engine='python')
 
