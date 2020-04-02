@@ -296,12 +296,12 @@ class data:
     def load_csv(self, file, utc_conv=0):
         print(file)
         # dateparse = lambda x: pd.datetime.strptime(x, '%Y-%m-%d %H:%M:%S') + pd.to_timedelta(utc_conv, 'h')
-        if len(file) > 1 and not isinstance(file, str):
+        if len(file) > 1 or not isinstance(file, str):
             print('Warning! Multiple files found but only one expected, trios first file of the list:')
             print(file)
             file_ = file[0]
         else:
-            file_ = file[0]
+            file_ = file
         # df = pd.read_csv(file, date_parser=dateparse, sep=';', index_col=0, na_values=['-NAN'])
         df = pd.read_csv(file_, sep=';|,', na_values=['-NAN'], engine='python')
 

@@ -51,48 +51,27 @@ def generate_database_info(idirs, infofile):
                                               ['Lt' + s for s in meta_attrs]]))
 
     # loop on directories (for each date)
-    for date in metas.DATE.unique():
-        date_dir =pd.to_datetime(str(date)).strftime('%Y%m%d')
-        meta = metas[metas.DATE==date]
-        idir_ = os.path.join(idir, 'L1', date_dir)
-        files = glob.glob(idir_ + '/*.csv')
-        print(idir_)
-        for file in files:
-            name = opb(file).replace('.csv', '')
-            name_ =name.split('_')
-            print(name_)
-            if name_[2]=="eau":
-                print(name_)
-
-        for id in meta.SAMPLE.unique():
-            print(idir_,id)
-            files = np.unique(np.append(glob.glob(idir_ + '/' + id.lower() + '_*.csv'),
-                                        glob.glob(idir_ + '/' + id + '_*.csv')))
-
-
-
     for i, meta in metas.iterrows():
-        # print(meta)
+        #print(i)
         date_dir = meta[0].strftime('%Y%m%d')
         full_date = dt.datetime.combine(meta[0], meta[1])
-        ID, site, comment, lat, lon = meta[2], meta[3], meta[4], meta[5], meta[6]
-
+        ID, site, comment, lat, lon, wind = meta[2:8]
+        idir_ = os.path.join(idir, 'L1', date_dir)
 
 
         date = opb(idir_)
-        print(idir_ + '/' + ID.lower())
+        print(idir_ + '/' + ID.lower() + ID.replace('id',''))
 
-        files = np.unique(np.append(glob.glob(idir_ + '/' + ID.lower() + '_*.csv'),
-                          glob.glob(idir_ + '/' + ID + '_*.csv')))
+        files = pd.Series(
+                    np.unique(
+                        np.append(glob.glob(idir_ + '/awr/' + ID.lower() + '_*.mlb'),
+                                    glob.glob(idir_ + '/awr/ID' + ID.replace('id','').replace('ID','') + '_*.mlb'))))
+        print('nb files ',len(files))
 
         for file in files:
-            name = opb(file).replace('.csv','')
+            name = opb(file).replace('.mlb','')
             print(name.split('_'))
 
-
-        if i> 4:
-            break
-        print(len(files))
         # loop on data files (for each acquisition sequence)
         for Edf in files:
             ID_ = ID.lower() #Edf.split('_')[-1].replace('.mlb', '')

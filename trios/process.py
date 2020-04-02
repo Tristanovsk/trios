@@ -460,8 +460,9 @@ class iwr_process:
         mean = df.groupby('rounded_depth').mean()
         median = df.groupby('rounded_depth').median()
         std = df.groupby('rounded_depth').std()
-        q25 = df.groupby('rounded_depth').quantile(0.25)
-        q75 = df.groupby('rounded_depth').quantile(0.75)
+        df_=df.drop(df.columns[df.dtypes=='object'],axis=1)
+        q25 = df_.groupby('rounded_depth').quantile(0.25)
+        q75 = df_.groupby('rounded_depth').quantile(0.75)
 
         # ---------------------------
         # Data processing
