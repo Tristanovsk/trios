@@ -20,11 +20,16 @@ import plotly.graph_objects as go
 import plotly.express as px
 import plotly.offline as po
 
+opb = os.path.basename
+opj = os.path.join
+
 idir = '/DATA/projet/hydrosim/data/trios'
+odir = opj(idir, 'L2/awr')
+figdir = opj(idir, 'fig/L2')
 
 coordf = os.path.join(idir, '../metadata', 'Coordenadas_Rrs__2016_2019.xlsx')
 
-metaf = os.path.join(idir, 'Metadata_hydroSim.xlsx')
+metaf = os.path.join(idir, 'Metadata_hydroSim_awr.xlsx')
 infofile = os.path.join(idir, 'triosdatainfo.csv')
 L1dir = os.path.join(idir, 'L1')
 
@@ -41,74 +46,63 @@ def get_meta(file):
 
 
 def generate_database_info(idirs, infofile):
-    opb = os.path.basename
-
     meta_attrs = ['%IDDevice', '%IntegrationTime', '%IDDataBack', '%IDDataCal', '%CalFactor']
 
-    df = pd.DataFrame(columns=np.concatenate([['ID', 'date', 'lat', 'lon', 'Ed_file', 'Lsky_file', 'Lt_file'],
+    df = pd.DataFrame(columns=np.concatenate([['ID', 'date', 'lat', 'lon', 'wind', 'vza', 'azi',
+                                               'Ed_file', 'Lsky_file', 'Lt_file'],
                                               ['Ed' + s for s in meta_attrs],
                                               ['Lsky' + s for s in meta_attrs],
                                               ['Lt' + s for s in meta_attrs]]))
 
     # loop on directories (for each date)
     for i, meta in metas.iterrows():
-        #print(i)
+        # print(i)
         date_dir = meta[0].strftime('%Y%m%d')
         full_date = dt.datetime.combine(meta[0], meta[1])
-        ID, site, comment, lat, lon, wind = meta[2:8]
+        ID, site, comment, lat, lon, wind, vza, azi = meta[2:10]
         idir_ = os.path.join(idir, 'L1', date_dir)
 
-
         date = opb(idir_)
-        print(idir_ + '/' + ID.lower() + ID.replace('id',''))
+        print(idir_ + '/' + ID.lower() + ID.replace('id', ''))
 
         files = pd.Series(
-                    np.unique(
-                        np.append(glob.glob(idir_ + '/awr/' + ID.lower() + '_*.mlb'),
-                                    glob.glob(idir_ + '/awr/ID' + ID.replace('id','').replace('ID','') + '_*.mlb'))))
-        print('nb files ',len(files))
+            np.unique(
+                np.append(glob.glob(idir_ + '/awr/' + ID.lower() + '_*.mlb'),
+                          glob.glob(idir_ + '/awr/ID' + ID.replace('id', '').replace('ID', '') + '_*.mlb'))))
+
+        if len(files) == 0:
+            continue
+
+        print('nb files ', len(files))
 
         for file in files:
-            name = opb(file).replace('.mlb','')
+            name = opb(file).replace('.mlb', '')
             print(name.split('_'))
+            ID = name.split('_')[0]
+        Edf = opj(idir_, 'awr', ID + '_Ed.mlb')
+        Lskyf = opj(idir_, 'awr', ID + '_Ld.mlb')
+        Ltf = opj(idir_, 'awr', ID + '_Lu.mlb')
 
-        # loop on data files (for each acquisition sequence)
-        for Edf in files:
-            ID_ = ID.lower() #Edf.split('_')[-1].replace('.mlb', '')
-            pattern = Edf.split('_')[0:-2]
+        # read metadata from files
+        Edmeta, Lskymeta, Ltmeta = get_meta(Edf), get_meta(Lskyf), get_meta(Ltf)
 
-            try:
-                Lskyf = glob.glob(Edf.replace('Ed', 'Ld').replace('.mlb','*.csv'))[0]
-            except:
-                print('problem with: ', date, ID_, pattern, Edf)
-                continue
-            try:
-                Ltf = glob.glob(Edf.replace('Ed', 'Lu').replace(Edf.split('_')[-2], '*'))[0]
-            except:
-                print('problem with: ', date, ID_, pattern, Edf)
-                continue
-
-            # read metadata from files
-            Edmeta, Lskymeta, Ltmeta = get_meta(Edf), get_meta(Lskyf), get_meta(Ltf)
-
-            # save into dataframe df
-            info = np.concatenate([[ID_, date, lat, lon, opb(Edf), opb(Lskyf), opb(Ltf)], \
-                                   Edmeta[meta_attrs].values[0], Lskymeta[meta_attrs].values[0],
-                                   Ltmeta[meta_attrs].values[0]])
-            df.loc[i] = info
-            i += 1
+        # save into dataframe df
+        info = np.concatenate([[ID, date, lat, lon, wind, vza, azi, opb(Edf), opb(Lskyf), opb(Ltf)], \
+                               Edmeta[meta_attrs].values[0], Lskymeta[meta_attrs].values[0],
+                               Ltmeta[meta_attrs].values[0]])
+        df.loc[i] = info
 
     df.to_csv(infofile, index=False)
 
 
-def plot_map(coords, datafile=''):
+def plot_map( idir, datafile=''):
     ''' Plot for band 'wl' and 'method' '''
     wl = 659
-    wl = 860
+    #wl = 860
     method = 'M99'
 
     if datafile == '':
-        datafile = os.path.join(idir, 'L2/all/Rrs_stat.csv')
+        datafile = opj(idir, 'Rrs_stat.csv')
 
     df = pd.read_csv(datafile, parse_dates=True)
     df['datetime'] = df['date']
@@ -137,9 +131,9 @@ def plot_map(coords, datafile=''):
                             size='size',
                             range_color=[0, df_['0.5'].max() * 0.7],
                             animation_frame='month',
-                            color_continuous_scale=px.colors.cyclical.IceFire,
-                            zoom=5.5, opacity=0.45, height=900, width=1100,
-                            title='Sample points from Rogerio; Rrs at ' + str(wl) + ' nm')
+                            color_continuous_scale=px.colors.diverging.RdYlBu_r,
+                            zoom=5.5, opacity=0.65, height=900, width=1100,
+                            title='Sample points; Rrs at ' + str(wl) + ' nm')
     # fig.update_traces(marker=dict(line_width=2),selector=dict(mode='markers'))
     fig.update_traces(
 
@@ -162,7 +156,7 @@ def plot_map(coords, datafile=''):
 
                       ])
     # fig.update_layout(margin={"r":10,"t":0,"l":10,"b":0})
-    po.plot(fig, filename=os.path.join(idir, '../fig/map_rogerio_Rrs' + str(wl) + '.html'))
+    po.plot(fig, filename=opj(figdir, 'map_Rrs' + str(wl) + '.html'))
 
 
 def call(command):
@@ -177,12 +171,10 @@ def call(command):
 
 
 def process(infofile, method='M99', ncore=10):
-    odir = '/DATA/OBS2CO/data/rogerio/data/L2'
-    figdir = '/DATA/OBS2CO/data/rogerio/fig/L2'
     info = pd.read_csv(infofile)
     utc_conv = '4'
 
-    command = []
+    commands = []
 
     for i, info_ in info.iterrows():
 
@@ -195,24 +187,25 @@ def process(infofile, method='M99', ncore=10):
         if not os.path.exists(odir_):
             os.makedirs(odir_)
 
-        lat, lon = str(info_.lat), str(info_.lon)
+        lat, lon,vza,azi,wind = str(info_.lat), str(info_.lon),str(info_.vza), str(info_.azi),str(info_.wind)
 
         Edf, Lskyf, Ltf = info_.Ed_file, info_.Lsky_file, info_.Lt_file
-
-        command.append('trios_processing ' + os.path.join(L1dir, date) + ' ' + ID + \
-                       ' awr --lat ' + lat + ' --lon ' + lon + ' --name _' + method + \
-                       ' --data_files "' + Edf + ' ' + Lskyf + ' ' + Ltf + \
-                       '" --odir ' + odir_ + ' --utc_conv=' + utc_conv + \
-                       ' --method ' + method + ' --plot --figdir ' + figdir + ' --format mlb --no_clobber')
-
+        command = 'trios_processing ' + os.path.join(L1dir, date,'awr') + ' ' + ID + \
+                  ' awr --lat ' + lat + ' --lon ' + lon + ' --name _' + method + \
+                  ' --vza ' + vza + ' --azi ' + azi + ' --ws ' + wind + \
+                  ' --data_files "' + Edf + ' ' + Lskyf + ' ' + Ltf + \
+                  '" --odir ' + odir_ + ' --utc_conv=' + utc_conv + \
+                  ' --method ' + method + ' --plot --figdir ' + figdir + ' --format mlb --no_clobber'
+        commands.append(command)
+        print(command)
     with Pool(processes=ncore) as pool:
 
-        print(pool.map(call, command))
+        print(pool.map(call, commands))
         pool.close
 
 
-def post_process(create_stat_file=False):
-    idir = '/DATA/OBS2CO/data/rogerio/data/L2'
+def post_process(idir,figdir,create_stat_file=False):
+
     stat_file = os.path.join(idir, 'all/Rrs_stat.csv')
 
     if create_stat_file:
@@ -240,14 +233,14 @@ def post_process(create_stat_file=False):
     df.sort_values(['date', 'ID', 'method', 'wl'], inplace=True)
 
     import matplotlib.pyplot as plt
-
+    plt.ioff()
     ncols = 4
 
     obj = df.groupby(['date', 'ID'])
     N = obj.groups.__len__()
     rows = N // ncols + (1 if N % ncols else 0)
-    aspect_ratio = 1 * ncols
-    fig, axs = plt.subplots(nrows=rows, ncols=ncols, figsize=(20, rows * aspect_ratio))
+    aspect_ratio = 1.3 * ncols
+    fig, axs = plt.subplots(nrows=rows, ncols=ncols, figsize=(25, rows * aspect_ratio))
     fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.45)
     c = dict(M99='red', osoaa='black', temp_opt='blue')
 
@@ -260,7 +253,8 @@ def post_process(create_stat_file=False):
         ax.legend(loc='best', frameon=False)
         ax.set_xlabel(r'Wavelength (nm)')
         ax.set_title('ID ' + idx[1] + ', ' + idx[0].date().__str__())
-    plt.savefig('/DATA/OBS2CO/data/rogerio/fig/compare_method.pdf', bbox_inches='tight')
+    plt.tight_layout()
+    plt.savefig(figdir, bbox_inches='tight',dpi=300)
     plt.close()
 
 
@@ -276,7 +270,7 @@ process(infofile, method=method, ncore=10)
 for method in ['M99', 'osoaa', 'temp_opt']:
     process(infofile, method=method, ncore=10)
 
-post_process(create_stat_file=True)
+post_process(odir,figdir,create_stat_file=True)
 
 # ----
 # END

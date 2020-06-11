@@ -119,8 +119,6 @@ for name, raw in df.resample('1H'):
 
         # Rrs, rho = awr.process_wrapper(wl_common, raw, raw.sza, ws=ws, vza = [vza] * N, azi=raw.azi)
         #
-        #
-        #
         # awr.get_rho_values(raw.sza-90,[vza]*N, raw.azi.values, ws=[2])
         #
         # rho = awr.get_rho_mobley(awr.rhoM1999,raw.sza-90,[vza]*N, azi=raw.azi, ws=[2])[0,:,0]

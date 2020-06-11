@@ -60,7 +60,7 @@ irr = ua.irradiance()
 irr.load_F0()
 # TODO check noise values (e.g., NEI from Trios), should it be spectral?
 noise = 0.1
-idpr = '169'
+idpr = '150'
 
 idx_list_for_plot=(28, 37, 51, 71, 91, 105, 130, 140, 170)
 #idx_list_for_plot=(165,170,175,180,185,190,195,200,205)
@@ -109,13 +109,15 @@ for idpr in idprs[0:]:
         mean = df.groupby('rounded_depth').mean()
         median = df.groupby('rounded_depth').median()
         std = df.groupby('rounded_depth').std()
-        q25 = df.groupby('rounded_depth').quantile(0.25)
-        q75 = df.groupby('rounded_depth').quantile(0.75)
+        df_=df.drop(df.columns[df.dtypes=='object'],axis=1)
+        q25 = df_.groupby('rounded_depth').quantile(0.25)
+        q75 = df_.groupby('rounded_depth').quantile(0.75)
 
         # ---------------------------
         # Data processing
         # ---------------------------
         # load process object
+
         process = iwr_process(wl=wl_)
 
         # process data

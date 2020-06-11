@@ -32,7 +32,7 @@ class awr_process:
         self.M1999_file = M1999_file
         self.M2015_file = M2015_file
         self.load_rho_lut()
-        self.rho = self.rhosoaa_fine
+        self.rho = self.rhosoaa_coarse
 
     def load_rho_lut(self):
         self.rhosoaa_fine = pd.read_csv(self.rhosoaa_fine_file, index_col=[0, 1, 2, 3, 4, 5])
@@ -83,7 +83,7 @@ class awr_process:
         :return:
         '''
         # Warning SZA set to 90 if Sun below the horizon
-        #sza[sza>90]=90
+        # sza[sza>90]=90
 
         rhodf = rhodf.query('sza<75 & vza >0')
         rhodf.index = rhodf.index.remove_unused_levels()
@@ -104,7 +104,7 @@ class awr_process:
         # filtering
         # ------------------
         ind = self.filtering(self.df.Lt, self.df.Lsky, self.df.Ed)
-        clean = self.df #[ind]
+        clean = self.df  # [ind]
         Lt, Lsky, Ed, sza = clean.Lt.values, clean.Lsky.values, clean.Ed.values, clean.sza.values
 
         # -----------------------------
@@ -140,11 +140,12 @@ class awr_process:
             Ltm = Lt.mean(axis=0)
             Edm = Ed.mean(axis=0)
 
-            def add_envelope(ax,wl,values,label='',**kwargs):
-                up.add_curve(ax, wl, values.mean(axis=0), label=label, c='black',**kwargs)
-                ax.fill_between(wl,np.quantile(values,0.05, axis=0),np.quantile(values,0.95, axis=0), alpha=0.25, color='grey')
-                ax.fill_between(wl,np.quantile(values,0.25, axis=0),np.quantile(values,0.75, axis=0), alpha=0.35, color='red')
-
+            def add_envelope(ax, wl, values, label='', **kwargs):
+                up.add_curve(ax, wl, values.mean(axis=0), label=label, c='black', **kwargs)
+                ax.fill_between(wl, np.quantile(values, 0.05, axis=0), np.quantile(values, 0.95, axis=0), alpha=0.25,
+                                color='grey')
+                ax.fill_between(wl, np.quantile(values, 0.25, axis=0), np.quantile(values, 0.75, axis=0), alpha=0.35,
+                                color='red')
 
             mpl.rcParams.update({'font.size': 18})
             fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(20, 12))
@@ -152,26 +153,26 @@ class awr_process:
 
             # ---- Ed
             ax = axs[0, 0]
-            add_envelope(ax,wl,Ed,label=r'$E_s$')
-            #up.add_curve(ax, wl, Ed.mean(axis=0), Ed.std(axis=0), label=r'$E_s$', c='black')
+            add_envelope(ax, wl, Ed, label=r'$E_s$')
+            # up.add_curve(ax, wl, Ed.mean(axis=0), Ed.std(axis=0), label=r'$E_s$', c='black')
             ax.set_ylabel(r'$E_{d}(0^{+})\ (mW\ m^{-2}\ nm^{-1})$')
             ax.set_xlabel(r'Wavelength (nm)')
             ax.legend(loc='best', frameon=False)
 
             # ---- Lsky
-            ax = axs[0, 1] #ax2 = ax.twinx()
-            add_envelope(ax,wl,Lsky,label=r'$L_{sky}$')
+            ax = axs[0, 1]  # ax2 = ax.twinx()
+            add_envelope(ax, wl, Lsky, label=r'$L_{sky}$')
 
-            ax.set_ylabel(r'$L_{sky}\ (mW\ m^{-2}\ nm^{-1}\ sr^{-1})$')#, color='r')
-            #ax.tick_params('y', colors='r')
+            ax.set_ylabel(r'$L_{sky}\ (mW\ m^{-2}\ nm^{-1}\ sr^{-1})$')  # , color='r')
+            # ax.tick_params('y', colors='r')
             ax.set_xlabel(r'Wavelength (nm)')
             ax.legend(loc='best', frameon=False)
 
             # ---- Lt vs Lsurf
             ax = axs[0, 2]
-            add_envelope(ax,wl,Lt,label=r'$L_t$')
-            #up.add_curve(ax, wl, Lt.mean(axis=0), Lt.std(axis=0), label=r'$L_t$', c='black')
-            add_envelope(ax,wl,Lsky* rho,label=r'$L_{surf}$',linestyle=':')
+            add_envelope(ax, wl, Lt, label=r'$L_t$')
+            # up.add_curve(ax, wl, Lt.mean(axis=0), Lt.std(axis=0), label=r'$L_t$', c='black')
+            add_envelope(ax, wl, Lsky * rho, label=r'$L_{surf}$', linestyle=':')
             # up.add_curve(ax, wl, Lsky.mean(axis=0) * rho, Lsky.std(axis=0) * rho,
             #              label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
             ax.set_ylabel(r'$L_t\ or\ L_{surf}\ (mW\ m^{-2}\ nm^{-1}\ sr^{-1})$')
@@ -180,7 +181,7 @@ class awr_process:
 
             # ---- Proportion o(Lt - Lsurf ) /Lt
             ax = axs[1, 0]
-            add_envelope(ax,wl,Lsky * rho / Ltm,label=r'$L_{surf}/L_t$')
+            add_envelope(ax, wl, Lsky * rho / Ltm, label=r'$L_{surf}/L_t$')
             # up.add_curve(ax, wl, Lsky.mean(axis=0) * rho / Ltm, Lsky.std(axis=0) * rho,
             #              label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
             ax.set_ylabel(r'$L_{surf}/L_t$')
@@ -188,7 +189,7 @@ class awr_process:
 
             # ---- Lw
             ax = axs[1, 1]
-            add_envelope(ax,wl,Rrs* Edm)
+            add_envelope(ax, wl, Rrs * Edm)
             # up.add_curve(ax, wl, Rrs.mean(axis=0) * Edm, Rrs.std(axis=0) * Edm,
             #              label=method + ' (' + str(round(rho, 4)) + ')', c='blue')
 
@@ -197,7 +198,7 @@ class awr_process:
 
             # ---- Rrs
             ax = axs[1, 2]
-            add_envelope(ax,wl,Rrs)
+            add_envelope(ax, wl, Rrs)
             # up.add_curve(ax, wl, Rrs.transpose().mean(axis=1), Rrs.transpose().std(axis=1),
             #              label=method + ' (' + str(round(rho, 4)) + ')', c='blue')
             ax.set_ylabel(r'$R_{rs}\  (sr^{-1})$')
@@ -442,6 +443,16 @@ class iwr_process:
         self.name = name
         self.idpr = idpr
 
+        ################
+        # load aux data
+        iopw = ua.iopw()
+        iopw.load_iopw()
+        irr = ua.irradiance()
+        irr.load_F0()
+        self.aw, self.bbw = iopw.get_iopw(wl)
+        self.F0 = irr.get_F0(wl)
+
+
     def call_process(self, ofile="", plot_file=""):
 
         # ---------------------------
@@ -460,17 +471,17 @@ class iwr_process:
         mean = df.groupby('rounded_depth').mean()
         median = df.groupby('rounded_depth').median()
         std = df.groupby('rounded_depth').std()
-        df_=df.drop(df.columns[df.dtypes=='object'],axis=1)
+        df_ = df.drop(df.columns[df.dtypes == 'object'], axis=1)
         q25 = df_.groupby('rounded_depth').quantile(0.25)
         q75 = df_.groupby('rounded_depth').quantile(0.75)
 
         # ---------------------------
         # Data processing
         # ---------------------------
-        res = self.process(mean, std)
-        res_w = self.process(mean, std, mode='log')
-        res_med = self.process(median, std)
-        res_lsq = self.process(mean, std, mode='lsq')
+        res, res_Lu = self.process(mean, std)
+        res_w, void = self.process(mean, std, mode='log')
+        res_med, void = self.process(median, std)
+        res_lsq, void = self.process(mean, std, mode='lsq')
 
         Kd = res_lsq.popt[:, 0]
         Edm = res_lsq.popt[:, 1]
@@ -512,29 +523,36 @@ class iwr_process:
             fig, axs = plt.subplots(nrows=3, ncols=3, figsize=(16, 10))
             fig.subplots_adjust(left=0.1, right=0.9, hspace=.5, wspace=0.25)
 
+            print(std.prof_Edz)
+
             for idx in idx_list_for_plot:
                 ax = axs.flat[i]
                 i += 1
                 y = mean.Edz.iloc[:, idx]
                 sigma = std.Edz.iloc[:, idx]
                 yerr = [median.Edz.iloc[:, idx] - q25.Edz.iloc[:, idx], q75.Edz.iloc[:, idx] - median.Edz.iloc[:, idx]]
-                ax.errorbar(x, y, yerr=yerr, ecolor='lightgray', alpha=0.43, fmt='none', elinewidth=3, capsize=0,
+
+                xerr = std.prof_Edz.values  # [mean.prof_Edz - std.prof_Edz, mean.prof_Edz + std.prof_Edz]
+                yerr = [mean.Edz.iloc[:, idx] - std.Edz.iloc[:, idx], mean.Edz.iloc[:, idx] + std.Edz.iloc[:, idx]]
+
+                ax.errorbar(x, y, xerr=xerr, yerr=yerr, ecolor='gray', alpha=0.73, fmt='none', elinewidth=2, capsize=0,
                             label='std')
                 ax.scatter(x, y,
                            # s = std.Edz.iloc[:,50]/std.Edz.iloc[:,50].mean()+100,
                            c=mean.Ed.iloc[:, idx],
                            alpha=0.6, cmap=cmocean.cm.thermal, label=None
                            )
-                Ed_sim = iwr_process().f_Edz(depth_, *res.popt[idx, :])
+                Ed_sim = self.f_Edz(depth_, *res.popt[idx, :])
                 ax.plot(depth_, Ed_sim, linestyle='-', c='black', label='mean')
-                Ed_sim = iwr_process().f_Edz(depth_, *res_w.popt[idx, :])
+                Ed_sim = self.f_Edz(depth_, *res_w.popt[idx, :])
                 ax.plot(depth_, Ed_sim, linestyle=':', c='black', label='log-space')
-                # Ed_sim = iwr_process.f_Edz(depth_, *res_rw[idx][0])
+                # Ed_sim = self.f_Edz(depth_, *res_rw[idx][0])
                 # ax.plot(depth_, Ed_sim, linestyle=':', c='red', label='mean, relativ weighted')
-                Ed_sim = iwr_process().f_Edz(depth_, *res_med.popt[idx, :])
+                Ed_sim = self.f_Edz(depth_, *res_med.popt[idx, :])
                 ax.plot(depth_, Ed_sim, linestyle='--', c='black', label='median')
 
                 ax.semilogy()
+                # ax.semilogx()
                 # ax.colorbar()
                 ax.set_ylabel(r'$E_d\ ({mW\cdot m^{-2}\cdot nm^{-1}})$')
                 ax.set_xlabel('Depth (m)')
@@ -571,16 +589,18 @@ class iwr_process:
                            c=mean.Ed.iloc[:, idx],
                            alpha=0.6, cmap=cmocean.cm.thermal, label=None
                            )
-                Lu_sim = iwr_process().f_Lu(depth_, *res_lsq.popt[idx, -2:])
+                Lu_sim = self.f_Lu(depth_, *res_lsq.popt[idx, -3:-1])
                 ax.plot(depth_, Lu_sim, linestyle='-', c='black', label='mean')
-                # Lu_sim = iwr_process().f_Luz(depth_, *res_w.popt[idx, :])
+                # Lu_sim = self.f_Luz(depth_, *res_w.popt[idx, :])
                 # ax.plot(depth_, Lu_sim, linestyle=':', c='black', label='log-space')
-                # # Lu_sim = iwr_process.f_Luz(depth_, *res_rw[idx][0])
+                # # Lu_sim = self.f_Luz(depth_, *res_rw[idx][0])
                 # # ax.plot(depth_, Lu_sim, linestyle=':', c='red', label='mean, relativ weighted')
-                # Lu_sim = iwr_process().f_Luz(depth_, *res_med.popt[idx, :])
+                # Lu_sim = self.f_Luz(depth_, *res_med.popt[idx, :])
                 # ax.plot(depth_, Lu_sim, linestyle='--', c='black', label='median')
 
                 ax.semilogy()
+                # ax.semilogx()
+
                 # ax.colorbar()
                 ax.set_ylabel(r'$L_u\ ({mW\cdot m^{-2}\cdot sr^{-1}\cdot nm^{-1}})$')
                 ax.set_xlabel('Depth (m)')
@@ -633,7 +653,9 @@ class iwr_process:
 
             iparam = 2
             ax = axs.flat[iparam]
-            y, sigma = res_lsq.popt[:, iparam], np.sqrt(res_lsq.pcov[:, iparam, iparam]) * 0
+            y, sigma = res_Lu.popt[:, 0], np.sqrt(res_Lu.pcov[:, 0,0])
+            up.add_curve(ax, wl, y, sigma, c='red', label='mean')
+            y, sigma = res_lsq.popt[:, iparam], np.sqrt(res_lsq.pcov[:, iparam, iparam]) * 1e-3
             sigma[sigma > 10 * np.nanmedian(sigma)] = np.nan
             up.add_curve(ax, wl, y, sigma, c='blue', label='lsq')
             ax.set_ylabel(r'$K_{Lu}\ ({m^{-1}})$')
@@ -642,10 +664,13 @@ class iwr_process:
             iparam = 3
             ax = axs.flat[iparam]
 
-            y, sigma = res_lsq.popt[:, iparam], np.sqrt(res_lsq.pcov[:, iparam, iparam]) * 0
+            y, sigma = res_lsq.popt[:, iparam], np.sqrt(res_lsq.pcov[:, iparam, iparam]) * 1e-3
             sigma[sigma > 10 * np.nanmedian(sigma)] = np.nan
             up.add_curve(ax, wl, y, sigma, c='blue', label='lsq')
-            ax.set_ylabel(r'$L_{w}(0^{-})\ ({mW\cdot m^{-2}\cdot sr^{-1}\cdot nm^{-1})$')
+            y, sigma = res_Lu.popt[:, 1], np.sqrt(res_Lu.pcov[:, 1, 1])
+            up.add_curve(ax, wl, y, sigma, c='red', label='mean')
+            ax.legend(loc='best', frameon=False)
+            ax.set_ylabel(r'$L_{w}(0^{-})\ (mW\cdot m^{-2}\cdot sr^{-1}\cdot nm^{-1})$')
             ax.set_xlabel(r'Wavelength (nm)')
 
             fig.suptitle('trios_iwr ' + self.name + ' idpr' + self.idpr, fontsize=16)
@@ -681,7 +706,20 @@ class iwr_process:
 
             ax.set_xlabel(r'Wavelength (nm)')
             ax.legend(loc='best', frameon=False)
+
             ax = axs.flat[3]
+            iparam = 0
+            y, sigma = res.popt[:, iparam], res.pcov[:, iparam, iparam]
+            ax.plot(wl, np.gradient(np.gradient(y, wl), wl), c='red', label='mean')
+            y, sigma = res_w.popt[:, iparam], res_w.pcov[:, iparam, iparam]
+            ax.plot(wl, np.gradient(np.gradient(y, wl), wl),  c='orange', label='log-space')
+            y, sigma = res_med.popt[:, iparam], res_med.pcov[:, iparam, iparam]
+            ax.plot(wl, np.gradient(np.gradient(y, wl), wl),  c='green', label='median')
+            y, sigma = res_lsq.popt[:, iparam], np.sqrt(res_lsq.pcov[:, iparam, iparam])
+            ax.plot(wl, np.gradient(np.gradient(y, wl), wl),  c='blue', label='lsq')
+            ax.set_xlabel(r'Wavelength (nm)')
+            ax.set_ylabel(r'$\delta K_{d}/\delta\lambda\ ({m^{-1}})$')
+
 
             fig.suptitle('trios_iwr ' + self.name + ' idpr' + self.idpr, fontsize=16)
             pdf.savefig()
@@ -691,60 +729,72 @@ class iwr_process:
     def process(self, meas, std, mode='linear'):
         wl_ = self.wl
 
-        ################
-        # load aux data
-        iopw = ua.iopw()
-        iopw.load_iopw()
-        irr = ua.irradiance()
-        irr.load_F0()
         # TODO check noise values (e.g., NEI from Trios), should it be spectral?
         noise = 0.1
 
         N = len(wl_)
         x = meas.prof_Edz  # - 0.56
         res = uu.fit(N)
+        res_Lu = uu.fit(N)
         if mode == 'lsq':
-            res = uu.fit(N, 4)
-
+            res = uu.fit(N, 5)
+        first =True
         for idx, wl in enumerate(wl_[:-10]):
-            aw, bbw = iopw.get_iopw(wl)
-            F0 = irr.get_F0(wl)
+            aw, bbw = self.aw[idx], self.bbw[idx]
+            F0 = self.F0[idx]
 
             y = meas.Edz.iloc[:, idx]
             sigma = std.Edz.iloc[:, idx]
             sigma[sigma < noise] = noise
             sigma.fillna(np.inf, inplace=True)
+
             if mode == 'linear':
-                res.popt[idx, :], res.pcov[idx, ...] = so.curve_fit(self.f_Edz, x, y, [1.1 * aw, 100],
+                res.popt[idx, :], res.pcov[idx, ...] = so.curve_fit(self.f_Edz, x, y, [1.1 * aw, 0.9*F0],
                                                                     bounds=([aw, 0], [np.inf, F0]))
+                xx = meas.prof_Luz
+                yy = meas.Luz.iloc[:, idx]
+                res_Lu.popt[idx, :], res_Lu.pcov[idx, ...] = so.curve_fit(self.f_Lu, xx, yy, [1.1 * aw, 0.005],
+                                                                bounds=([aw/2, 0], [np.inf, np.inf]))
             elif mode == 'log':
                 res.popt[idx, :], res.pcov[idx, ...] = so.curve_fit(self.f_logEdz, x, np.log(1 + y),
                                                                     [1.1 * aw, 100], bounds=(
                         [aw, 0], [np.inf, F0]))  # , sigma=sigma, absolute_sigma=True
+
             elif mode == 'lsq':
+
                 z = (meas.prof_Edz, meas.prof_Luz)
-                y = (meas.Edz.iloc[:, idx], meas.Luz.iloc[:, idx])
+                y = (meas.Edz.iloc[:, idx], meas.Luz.iloc[:, idx], meas.Ed.iloc[:, idx].mean())
 
                 sig_Edz = self.format_sigma(std.Edz.iloc[:, idx], meas.Edz.iloc[:, idx], 0.1)
                 sig_Luz = self.format_sigma(std.Luz.iloc[:, idx], meas.Luz.iloc[:, idx], 1e-3)
 
                 sigma = (sig_Edz, sig_Luz)
-                sigma = (1, 1)
-                x0 = [1.1 * aw, min(F0, meas.Ed.iloc[:, idx].mean()), 1.1 * aw, meas.Luz.iloc[0, idx]]
+                sigma = (meas.Ed.iloc[:, idx].values,meas.Ed.iloc[:, idx].values)
+                #sigma = (1, 1)
+
+                x0 = [1.1 * aw, min(F0, meas.Ed.iloc[:, idx].mean()), 1.1 * aw, meas.Luz.iloc[0, idx], 0]
                 print('x0', wl, F0, aw, x0)
+                print(([aw, 0, aw / 2, 0,-0.1], [np.inf, F0, np.inf, np.inf,0.1]))
                 lsq = so.least_squares(self.cost_func, x0, args=(z, y, sigma),
-                                       bounds=([aw, 0, aw / 2, 0], [np.inf, F0, np.inf, np.inf]))
+                                       bounds=([0, 0, 0, 0,-0.1], [np.inf, F0, np.inf, np.inf,0.1]))
+                print('x', wl, F0, aw, lsq.x)
                 cost = 2 * lsq.cost  # res.cost is half sum of squares!
                 res.popt[idx, :], res.pcov[idx, ...] = lsq.x, calc().cov_from_jac(lsq.jac, cost)
 
-            if mode == 'lsq':
+                # x0 = [ 1.1 * aw, meas.Luz.iloc[0, idx]]
+                # llsq = so.least_squares(self.f_Lu, x0, args=(z, y),
+                #                        bounds=([ aw / 2, 0], [ np.inf, np.inf]))
+                # print(llsq.x,llsq.x[1]-lsq.x[1])
+            # TODO add lmfit methods and constraints on Z and Es ~ 0.96 * Ed0-
+
+            #if mode == 'lsq':
                 # TODO formalize and do more clever things for Quality Control
                 # discard retrieval if error covariance > threshold error covariance median
                 QC_idx = res.pcov[:, 3, 3] > 20 * np.nanmedian(res.pcov[:, 3, 3])
 
                 res.popt[QC_idx, 3] = np.nan
 
-        return res
+        return res, res_Lu
 
     def format_sigma(self, sigma, rescale=1, noise=0.1):
         '''
@@ -777,14 +827,39 @@ class iwr_process:
         z_Lu = z[1]
         Edz = mes[0]
         Lu = mes[1]
+        Es = mes[2]
         sig_Edz = sigma[0]
         sig_Luz = sigma[1]
+        sig_cons = Es #sigma[2]
 
-        cost_f1 = (Edz - self.f_Edz(z_Edz, x[0], x[1])) / sig_Edz
-        cost_f2 = (Lu - self.f_Lu(z_Lu, x[2], x[3])) / sig_Luz
+        cost_f1 = (Edz - self.f_Edz(z_Edz+x[4], x[0], x[1])) / sig_Edz
+        cost_f2 = (Lu - self.f_Lu(z_Lu+x[4], x[2], x[3])) / sig_Luz
 
-        return np.append(cost_f1, cost_f2)
+        constraint = [(Es - 0.96 * self.f_Edz(0+x[4], x[0], x[1]))/ sig_cons,
+                      x[4]]
 
+        return np.concatenate([cost_f1, cost_f2, constraint])
+
+    def cost_func_multi_wl(self, x, z, mes, sigma):
+        # TODO write and try out multi-wavelength approach with smoothness constraints (e.g., second derivatives)
+        z_Edz = z[0]
+        z_Lu = z[1]
+
+        Edz = mes[0]
+        Lu = mes[1]
+        Es = mes[2]
+
+        sig_Edz = sigma[0]
+        sig_Luz = sigma[1]
+        sig_cons = Es #sigma[2]
+
+        cost_f1 = (Edz - self.f_Edz(z_Edz+x[4], x[0], x[1])) / sig_Edz
+        cost_f2 = (Lu - self.f_Lu(z_Lu+x[4], x[2], x[3])) / sig_Luz
+
+        constraint = [(Es - 0.96 * self.f_Edz(0+x[4], x[0], x[1]))/ sig_cons,
+                      x[4]]
+
+        return np.concatenate([cost_f1, cost_f2, constraint])
     def Kd(self, depth, Edz):
         Kd = np.diff(Edz) / np.diff(depth)
 
@@ -889,7 +964,7 @@ class filters:
         if idxs == None:
             idxs = np.arange(spectra.shape[1])
 
-        spec = np.nansum(spectra.values[:, idxs],axis=1)
+        spec = np.nansum(spectra.values[:, idxs], axis=1)
         N = spec.shape[0]
         idx_num = int(cutoff * N)
         idx_min = spec.argsort()[:idx_num]
