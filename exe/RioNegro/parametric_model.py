@@ -8,6 +8,7 @@ mpl.rcParams.update({'font.size': 18})
 import statsmodels.api as sm
 from sklearn.linear_model import LinearRegression
 from statsmodels.sandbox.regression.predstd import wls_prediction_std
+from scipy import odr as odr
 
 file = '/DATA/OBS2CO/data/rogerio/data/Simulation_Rrs_OSOAA_TSS.xlsx'
 data = pd.read_excel(file)
@@ -15,7 +16,6 @@ data.sort_values(by="TSS (mg L)", inplace=True)
 data = data.set_index(['Station', 'Date'])
 spm = data.iloc[:, 0]  # .values.reshape(-1, 1)
 spm_sd = data.iloc[:, 1]
-from scipy import odr as odr
 
 
 def linear(B, x):
@@ -57,7 +57,7 @@ models = [(linear, 2)]  # (poly,3),,(exponential,2)
 for model, N in models:
 
     # plot Rrs = f(SPM)
-    fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(30, 12))
+    fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(25, 12))
     for i, ax in enumerate(axs.ravel()):
         print(i)
         x = data.iloc[:, 2 * i + 2]
@@ -69,9 +69,10 @@ for model, N in models:
         ax.set_xlabel(r'$R_{rs}\ (sr^{-1})$')
         ax.set_ylabel('SPM (mg/L)')
 
-        # fit with ordinary least square (OLS, fit_type=2 )
         testdata = odr.RealData(x, spm, sx=x_sd, sy=spm_sd)
         _odr = odr.ODR(testdata, odr.Model(model), beta0=[1.] * N)
+
+        # fit with ordinary least square (OLS, fit_type=2 )
         _odr.set_job(fit_type=2)
         res = _odr.run()
         res.pprint()
@@ -79,7 +80,8 @@ for model, N in models:
         yn = model(res.beta, xn)
         fit_up, fit_dw = confidence_interval(xn, model, res)
         a, b = res.beta[1], res.beta[0]
-        ax.plot(xn, yn, 'b--', label='OLS; y = {:.1f}x + {:.1f}\n res_var = {:.1f}'.format(a, b,res.res_var), linewidth=2)
+        ax.plot(xn, yn, 'b--', label='OLS; y = {:.1f}x + {:.1f}\n res_var = {:.1f}'.format(a, b, res.res_var),
+                linewidth=2)
         ax.fill_between(xn, fit_up, fit_dw, alpha=.25, facecolor="b")  # ,label="1-sigma interval")
 
         # fit with Orthogonal distance regression (ODR, fit_type = 0)
@@ -90,19 +92,22 @@ for model, N in models:
         yn = model(res.beta, xn)
         fit_up, fit_dw = confidence_interval(xn, model, res)
         a, b = res.beta[1], res.beta[0]
-        ax.plot(xn, yn, 'r-', label='ODR; y = {:.1f}x + {:.1f}\n res_var = {:.1f}'.format(a, b,res.res_var), linewidth=2)
+        ax.plot(xn, yn, 'r-', label='ODR; y = {:.1f}x + {:.1f}\n res_var = {:.1f}'.format(a, b, res.res_var),
+                linewidth=2)
         ax.fill_between(xn, fit_up, fit_dw, alpha=.25, facecolor="r")  # ,label="1-sigma interval")
         ax.legend()
-    fig.savefig('/DATA/ARTICLES/rogerio/SPM_vs_Rrs.png',dpi=200)
+    plt.tight_layout(rect=[0.0, 0.0, 0.99, 0.985])
+    fig.savefig('/DATA/ARTICLES/rogerio/SPM_vs_Rrs.png', dpi=200)
 
-# plot Rrs = f(SPM)
+    # plot Rrs = f(SPM)
     fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(30, 12))
     for i, ax in enumerate(axs.ravel()):
         print(i)
         x = data.iloc[:, 2 * i + 2] / data.iloc[:, 2 * 1 + 2]
 
         print(x.name)
-        x_sd = x * (data.iloc[:, 2 * i + 3]/data.iloc[:, 2 * i + 2] + data.iloc[:, 2 * 1 + 3]/data.iloc[:, 2 * 1 + 2])
+        x_sd = x * (data.iloc[:, 2 * i + 3] / data.iloc[:, 2 * i + 2] + data.iloc[:, 2 * 1 + 3] / data.iloc[:,
+                                                                                                  2 * 1 + 2])
 
         ax.errorbar(x, spm, xerr=x_sd, yerr=spm_sd, fmt='o', color='grey', ecolor='black', alpha=0.8)
         ax.set_title(x.name)
@@ -133,5 +138,7 @@ for model, N in models:
         ax.plot(xn, yn, 'r-', label='ODR; y = {:.1f}x + {:.1f}'.format(a, b), linewidth=2)
         ax.fill_between(xn, fit_up, fit_dw, alpha=.25, facecolor="r")  # ,label="1-sigma interval")
         ax.legend()
+
+
 # test ratio
 x = data.iloc[:, 2 * 5 + 2] / data.iloc[:, 2 * 1 + 2]
