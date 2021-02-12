@@ -235,6 +235,27 @@ def post_process(create_stat_file=False):
     df = pd.read_csv(stat_file, index_col=[0], parse_dates=True)
     df.sort_values(['date','ID','method','wl'],inplace=True)
 
+    #save rho values
+
+    odf =pd.DataFrame()
+    method='osoaa'
+    files = glob.glob(os.path.join(idir, method)+'/2*[0-9]/Rrs*csv')
+    for file in files:
+        info=file.split('_')
+        ID = info[-2].replace('idpr','')
+        if method == 'temp_opt':
+            ID = info[-3].replace('idpr','')
+        df = pd.read_csv(file, header=[0, 1], index_col=0, parse_dates=True)
+        date = df.index.mean()
+        rho = df.rho.quantile([0.5]).T
+        wl=rho.index.values
+        rho.index = pd.MultiIndex.from_product([[date],[ID], [method],wl],names=['date','ID','method','wl'])
+
+        odf = pd.concat([odf,rho])
+
+        # save data file
+        odf.to_csv(os.path.join(idir, 'all/rho_osoaa_stat.csv'))
+
     import matplotlib.pyplot as plt
 
 
@@ -267,7 +288,7 @@ def post_process(create_stat_file=False):
 
 # plot_map(coords)
 # generate_database_info(idirs,infofile)
-method = 'M99'
+method = 'osoaa'
 process(infofile, method=method, ncore=10)
 
 for method in ['M99','osoaa','temp_opt']:

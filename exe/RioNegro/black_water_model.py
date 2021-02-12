@@ -13,6 +13,9 @@ from statsmodels.sandbox.regression.predstd import wls_prediction_std
 from scipy import odr as odr
 from scipy import stats as scistats
 
+import RTxploitation as rt
+iopw = rt.auxdata.iopw().get_iopw
+
 opj= os.path.join
 idir = os.path.abspath('/DATA/OBS2CO/data/rogerio')
 figdir = opj(idir,'fig')
@@ -39,10 +42,24 @@ doc_sd = data.iloc[:, 16]
 def Rrs2rrs(Rrs):
         return Rrs / (0.52 + 1.7 * Rrs)
 
-def black_water_model(B, x):
+def inv_gordon88(rrs,g0=0.089,g1=0.125):
+        deltas = g0**2 + 4 * g1 * rrs
+        return (-g0 + np.sqrt(deltas)) / (2*g1)
+
+def black_water_model_old(B, x , wl=550):
+    aw,bbw = iopw(wl)
+    rrs = Rrs2rrs(x)
+    u = inv_gordon88(rrs)
+    return (B[0])**2 * (u - np.abs(B[1])  )
+
+def black_water_model(B, x, wl=550):
 
     rrs = Rrs2rrs(x)
-    return B[2] * (-B[0]+np.sqrt(B[0]**2+4*B[1]*rrs)) / (2*B[1])
+    u = inv_gordon88(rrs)
+    aw,bbw = iopw(wl)
+    N = (u*(aw+bbw+B[0])-bbw)/ (B[1]- u *(B[1]+B[2]))
+
+    return B[3] * N
 
 def linear(B, x):
     '''Linear function y = m*x + b'''
@@ -87,7 +104,8 @@ if param == 'SPM':
     # gordon values
     g0 = 0.089
     g1 = 0.125
-    model,beta0=black_water_model,[g0,g1,150]
+    model,beta0=black_water_model_old,[150,10]
+    #model,beta0=black_water_model,[1,1,1,10]
 else:
     y=doc
     y_sd=doc_sd
@@ -101,12 +119,13 @@ stats = pd.DataFrame(columns=['band','algo','b0','b1','b2','sig_b0','sig_b1','si
 
 
 # plot Rrs = f(SPM)
-
+wls = [560, 665, 704,740, 782, 864]
 fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(20, 12))
 for i, ax in enumerate(axs.ravel()):
-    print(i)
+    wl=wls[i]
+
     Rrs = data.iloc[:, 2 * i + 2]
-    print(Rrs.name)
+    print(Rrs.name,wl)
     Rrs_sd = data.iloc[:, 2 * i + 3]
 
     x,x_sd = Rrs, Rrs_sd
@@ -119,7 +138,7 @@ for i, ax in enumerate(axs.ravel()):
     ax.set_ylabel(ylabel)
 
     testdata = odr.RealData(x, y, sx=x_sd, sy=y_sd)
-    _odr = odr.ODR(testdata, odr.Model(model), beta0=beta0)
+    _odr = odr.ODR(testdata, odr.Model(model, extra_args=[wl]), beta0=beta0) #
 
     # fit with ordinary least square (OLS, fit_type=2 )
     _odr.set_job(fit_type=2)
@@ -130,12 +149,12 @@ for i, ax in enumerate(axs.ravel()):
     yn = model(res.beta, xn)
     fit_up, fit_dw = confidence_interval(xn, model, res)
 
-    stats.loc[2*i]=np.concatenate([[Rrs.name, 'OLS'], res.beta, res.sd_beta])
+    #stats.loc[2*i]=np.concatenate([[Rrs.name, 'OLS'], res.beta, res.sd_beta])
 
 
     ax.plot(xn, yn, 'b--', label='OLS',#; '+fit_eq.format(*res.beta),
             linewidth=2)
-    #ax.fill_between(xn, fit_up, fit_dw, alpha=.25, facecolor="b")  # ,label="1-sigma interval")
+    ax.fill_between(xn, fit_up, fit_dw, alpha=.25, facecolor="b")  # ,label="1-sigma interval")
 
     # fit with Orthogonal distance regression (ODR, fit_type = 0)
     _odr.set_job(fit_type=0)
@@ -144,17 +163,18 @@ for i, ax in enumerate(axs.ravel()):
     xn = np.linspace(0, np.max(x) * 1.25, 500)
     yn = model(res.beta, xn)
     fit_up, fit_dw = confidence_interval(xn, model, res)
-
-    stats.loc[2*i+1]=np.concatenate([[Rrs.name, 'ODR'], res.beta, res.sd_beta])
+    print()
+    #stats.loc[2*i+1]=np.concatenate([[Rrs.name, 'ODR'], res.beta, res.sd_beta])
 
     ax.plot(xn, yn, 'r-', label='ODR',#; '+fit_eq.format(*res.beta),
             linewidth=2)
-    #ax.fill_between(xn, fit_up, fit_dw, alpha=.25, facecolor="r")  # ,label="1-sigma interval")
+    ax.fill_between(xn, fit_up, fit_dw, alpha=.25, facecolor="r")  # ,label="1-sigma interval")
     ax.legend()
+    ax.set_ylim([0,40])
 plt.suptitle('Fit based on modified Gordon model')
 stats.to_csv(opj(idir,'stats_SPM_Rrs.csv'), float_format='%.2f',index=False)
 plt.tight_layout(rect=[0.0, 0.0, 0.99, 0.94])
-fig.savefig(opj(figdir,'blackwater_'+param+'_vs_Rrs.png'), dpi=200)
+fig.savefig(opj(figdir,'blackwater_'+param+'_vs_Rrs.png'), dpi=300)
 plt.show()
 
 plt.close()

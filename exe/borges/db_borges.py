@@ -18,7 +18,10 @@ from trios.utils.sunposition import sunpos
 opj = os.path.join
 dir = '/DATA/projet/borges'
 dirdata = opj(dir,'data')
-method = 'osoaa_coarse'
+aerosols = ['fine','coarse']
+aerosol=aerosols[1]
+method = 'osoaa_'+aerosol
+
 odir = opj(dirdata,'L2',method)
 if not os.path.exists(odir):
     os.makedirs(odir)
@@ -36,7 +39,8 @@ azi_sensor = 240
 def load_csv(file,label=''):
     ''' Load and reproject data on common wavelength set'''
     print(file)
-    df = pd.read_csv(file,index_col=0,parse_dates=True,)
+    date_parser = lambda x: pd.datetime.strptime(x, "%d/%m/%y %H:%M")
+    df = pd.read_csv(file,index_col=0,parse_dates=True,date_parser=date_parser)
     wl = df.columns = df.columns.astype('float')
     df.index.name = 'date'
 
@@ -71,13 +75,22 @@ relazi =  ( geom[:,0] - azi_sensor)% 360
 # since rho values are symmetrical with the principal plane
 relazi[relazi>180] = 360-relazi[relazi>180]
 df.at[:, 'azi'] = relazi
-awr = awr_process()
+
+def format_Rrs(Rrs,df,name='Rrs'):
+    Rrs = Rrs.to_pandas()
+    Rrs.index = df.index
+    Rrs.columns = pd.MultiIndex.from_product([ [name], df.Lt.columns,])
+    return Rrs
+
+awr = awr_process(aerosol = aerosol)
 
 vza = 40
 ws = 2
 aot550 = 0.1
 rho = awr.rho.rho.to_xarray()
-rho_ = rho.interp(wind=ws,aot=aot550,wl=wl_common)
+rho_ = rho.interp(vza=vza, wind=ws,aot=aot550,wl=wl_common)
+rho_M99=awr.rhoM1999.to_xarray().interp(vza=vza, wind=ws)
+rho_M99 = rho_M99.interp(sza=np.linspace(0,80,81),method='cubic').interp(azi=np.linspace(0,180,181),method='cubic')
 
 for name, raw in df.resample('1H'):
     print(name)
@@ -104,16 +117,26 @@ for name, raw in df.resample('1H'):
     # -----------------------------
     # data processing
     # -----------------------------
-    rho_v = rho_.interp(vza = vza, sza = sza_,  azi = azi_).T
+    rho_v = rho_.interp(sza = sza_,  azi = azi_).T
+    rho_M99_ = rho_M99.interp(sza = sza_,  azi = azi_).to_array().T.values
 
     clean['rho', ''] = rho_v.mean(axis=1)
+    clean['rho_min', ''] = rho_v.min(axis=1)
+    clean['rho_max', ''] = rho_v.max(axis=1)
+    clean['rho_M99', ''] = rho_M99_
 
     Lsurf = (rho_v * Lsky)
-    Rrs = (Lt - Lsurf) / clean.Ed
-    Rrs = Rrs.to_pandas()
-    Rrs.index = clean.index
-    Rrs.columns = pd.MultiIndex.from_product([ ['Rrs'], clean.Lt.columns,])
-    clean = pd.concat([Rrs,clean],axis=1)
+
+    Lsurf_M99 = rho_M99_ * Lsky
+
+
+    Rrs = format_Rrs((Lt - Lsurf) / clean.Ed,clean,'Rrs_'+method)
+    Rrs_M99 = (Lt - Lsurf_M99) / clean.Ed
+    Rrs_M99.columns = pd.MultiIndex.from_product([ ['Rrs_M99'], Rrs_M99.columns,])
+
+
+
+    clean = pd.concat([Rrs,Rrs_M99,clean],axis=1)
     clean.to_csv(opj(odir,'awr_L2_'+method+'_'+suff+'.csv'))
 
 

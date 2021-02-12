@@ -27,7 +27,7 @@ acdom_sd = data.iloc[:, 18]
 #remove sparse data of CDOM
 data = data.iloc[:,:-2]
 params=['SPM','DOC']
-param=params[0]
+param=params[1]
 if param == 'DOC':
     data.dropna(inplace=True)
 month = data.index.get_level_values(1).month
@@ -277,7 +277,7 @@ ax.annotate('y = {:.1f}x + {:.1f}\n$r$ = {:.3f}\nNb = {:d}'.format(
     a, b, np.corrcoef(x, y)[0,1],len(x)),xy=(0.55,0.75), xycoords='axes fraction',)
 
 plt.tight_layout(rect=[0.0, 0.0, 0.99, 0.985])
-fig.savefig(opj(figdir,'DOC_vs_SPM.png'), dpi=200)
+fig.savefig(opj(figdir,'DOC_vs_SPM_v2.png'), dpi=600)
 
 plt.show()
 
@@ -321,7 +321,7 @@ for i,SPM in enumerate(y.values):
 #------------------------------------------------
 # multiparametric fit (and 3D plotting)
 #------------------------------------------------
-
+plt.ioff()
 from matplotlib import cm
 import scipy.linalg
 
@@ -370,8 +370,9 @@ for i, ax in enumerate(axs.ravel()):
     plt.xlabel('DOC')
     plt.ylabel('SPM')
     ax.set_zlabel('Rrs')
+fig.savefig(opj(figdir, 'Rrs_DOC_SPM.png'), dpi=300)
 
-    plt.show()
+plt.show()
 
 
 # functions

@@ -1,5 +1,6 @@
 # standard lib
 import pandas as pd
+import xarray as xr
 from scipy import interpolate, integrate
 import scipy.optimize as so
 
@@ -21,7 +22,7 @@ from trios.config import *
 
 
 class awr_process:
-    def __init__(self, df=None, wl=None, name="", idpr=""):
+    def __init__(self, df=None, wl=None, aerosol = 'fine', name="", idpr=""):
         self.df = df
         self.wl = wl
         self.name = name
@@ -32,7 +33,11 @@ class awr_process:
         self.M1999_file = M1999_file
         self.M2015_file = M2015_file
         self.load_rho_lut()
+
         self.rho = self.rhosoaa_coarse
+        if aerosol == 'fine':
+            self.rho = self.rhosoaa_fine
+
 
     def load_rho_lut(self):
         self.rhosoaa_fine = pd.read_csv(self.rhosoaa_fine_file, index_col=[0, 1, 2, 3, 4, 5])
@@ -42,7 +47,7 @@ class awr_process:
         self.rhoM1999.dropna(inplace=True)
         self.rhoM2015.dropna(inplace=True)
 
-    def get_rho_values(self, sza, vza, azi, ws=[2], aot=[0.1], wl=[550], sunglint=False):
+    def get_rho_values_old(self, sza, vza, azi, ws=[2], aot=[0.1], wl=[550], sunglint=False):
         '''
         Interpolate the rho factor values from tabulated data
 
@@ -70,6 +75,28 @@ class awr_process:
         rho_wl = calc().spline_4d(grid[:-2], rho_, (ws, aot, wl, sza))
 
         return rho_wl.squeeze()
+
+    def get_rho_values(self, sza, vza, azi, ws=[2], aot=[0.1], wl=[550], sunglint=False):
+        '''
+        Interpolate the rho factor values from tabulated data
+
+        :param sza: solar zenith angle in deg, array-like
+        :param vza: view zenith angle in deg, array-like
+        :param azi: relative azimuth in deg (=0 when looking at Sun), array-like
+        :param ws: wind speed, m/s,(based on Cox-Munk parametrization of surface roughness) array-like
+        :param aot: aerosol optical thickness at 550 nm, array-like
+        :param wl: wavelength in nm, array-like
+        :param sunglint: add sunglint component in rho calculation if True
+        :return:
+        '''
+        rhoname = 'rho'
+        if sunglint:
+            rhoname = 'rho_g'
+        rho = self.rho[rhoname].to_xarray()
+        rho = rho.interp(vza=vza, azi = azi)
+        rho = rho.interp(wind=ws,aot=aot)
+
+        return rho.interp(sza = sza, wl=wl).squeeze().T.values
 
     def get_rho_mobley(self, rhodf, sza, vza, azi, ws):
         '''
@@ -121,12 +148,13 @@ class awr_process:
         #     Rrs, rho, Rrs_opt, Rrs_opt_std = self.process_optimization(wl, Lt, Lsky, Ed, sza, vza=vza, azi=azi)
 
         self.Rrs = Rrs.__deepcopy__()
-        self.Rrs['rho'] = rho
-        if method == 'temp_opt':
-            rho = np.nanmedian(rho)
+
+        # self.Rrs['rho'] = rho
+        # if method == 'temp_opt':
+        #     rho = np.nanmedian(rho)
 
         if ofile:
-            Rrs_df = pd.concat([self.df, self.Rrs], axis=1)
+            Rrs_df = pd.concat([self.df, self.Rrs,rho], axis=1)
             Rrs_df.to_csv(ofile)
             Rrs_stat = Rrs.describe()
             Rrs_stat.columns = Rrs_stat.columns.droplevel()
@@ -139,6 +167,8 @@ class awr_process:
             # ------------------
             Ltm = Lt.mean(axis=0)
             Edm = Ed.mean(axis=0)
+
+            Lsurf = Lsky * rho.values
 
             def add_envelope(ax, wl, values, label='', **kwargs):
                 up.add_curve(ax, wl, values.mean(axis=0), label=label, c='black', **kwargs)
@@ -172,7 +202,8 @@ class awr_process:
             ax = axs[0, 2]
             add_envelope(ax, wl, Lt, label=r'$L_t$')
             # up.add_curve(ax, wl, Lt.mean(axis=0), Lt.std(axis=0), label=r'$L_t$', c='black')
-            add_envelope(ax, wl, Lsky * rho, label=r'$L_{surf}$', linestyle=':')
+            print('-----',rho)
+            add_envelope(ax, wl, Lsurf, label=r'$L_{surf}$', linestyle=':')
             # up.add_curve(ax, wl, Lsky.mean(axis=0) * rho, Lsky.std(axis=0) * rho,
             #              label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
             ax.set_ylabel(r'$L_t\ or\ L_{surf}\ (mW\ m^{-2}\ nm^{-1}\ sr^{-1})$')
@@ -181,7 +212,7 @@ class awr_process:
 
             # ---- Proportion o(Lt - Lsurf ) /Lt
             ax = axs[1, 0]
-            add_envelope(ax, wl, Lsky * rho / Ltm, label=r'$L_{surf}/L_t$')
+            add_envelope(ax, wl, Lsurf / Ltm, label=r'$L_{surf}/L_t$')
             # up.add_curve(ax, wl, Lsky.mean(axis=0) * rho / Ltm, Lsky.std(axis=0) * rho,
             #              label=method + ' (' + str(round(rho, 4)) + ')', c='violet')
             ax.set_ylabel(r'$L_{surf}/L_t$')
@@ -233,6 +264,20 @@ class awr_process:
         else:
             Rrs, rho = self.process(wl, df.Lt, df.Lsky.values, df.Ed.values, sza, vza, azi, ws, aot, method)
 
+        if 'osoaa' in method:
+            rho = pd.DataFrame(data=rho)
+            rho.columns = pd.MultiIndex.from_product([['rho'], wl], names=['param', 'wl'])
+
+        elif method == 'temp_opt':
+            rho = pd.DataFrame(data=rho)
+            rho.columns = pd.MultiIndex.from_arrays([['rho'], [550]], names=['param', 'wl'])
+
+        else:
+            rho = pd.DataFrame(data=[rho]*Rrs.shape[0])
+
+            rho.columns = pd.MultiIndex.from_arrays([['rho'], [550]], names=['param', 'wl'])
+        rho.index = df.Lt.index
+        print(rho)
         Rrs.columns = pd.MultiIndex.from_product([['Rrs'], wl], names=['param', 'wl'])
         Rrs.index = df.Lt.index
         return Rrs, rho
@@ -258,18 +303,18 @@ class awr_process:
         # -----------------------------
 
         if method == 'osoaa':
-            rho = self.get_rho_values(np.median(sza), vza, azi, wl=wl, ws=ws, aot=aot)
+            rho = self.get_rho_values(sza, vza, azi, wl=wl, ws=ws, aot=aot)
         elif method == 'M99':
             rho = self.get_rho_mobley(self.rhoM1999, [np.median(sza)], [vza], [azi], [ws])
         elif method == 'M15':
             rho = self.get_rho_mobley(self.rhoM2015, [np.median(sza)], [vza], [azi], [ws])
         else:
             return print('ERROR: no method for rho factor')
-
+        print('rhoooooooooooo',rho.shape,Lsky.shape)
         self.Rrs = (Lt - rho * Lsky) / Ed
         # Rrs.columns = pd.MultiIndex.from_product([['Rrs'], wl], names=['param', 'wl'])
 
-        return self.Rrs, rho.mean()
+        return self.Rrs, rho #.mean()
 
     def cost_func(self, x, param, meas, Rrs_bar):
         sza, vza, azi = param
@@ -312,7 +357,7 @@ class awr_process:
                 x_est.append(res_lsq.x[0])
                 Rrs, rho = self.process(wl, Lt[i], Lsky[i], Ed[i], sza[i], ws=res_lsq.x[0], azi=azi)
                 Rrs_est.append(Rrs)
-                rho_est.append(rho)
+                rho_est.append(rho[0])
                 print(res_lsq.x, res_lsq.cost)
 
             Rrs_bar = np.mean(Rrs_est, axis=0)
@@ -973,6 +1018,8 @@ class filters:
         ind = np.abs(1 - spec / med) < threshold
 
         return ind, spectra[ind]
+
+# TODO add time rolling filters
 
 
 class calc:

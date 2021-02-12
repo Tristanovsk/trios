@@ -88,7 +88,7 @@ def main():
     vza = float(args['--vza'])
     ws = float(args['--ws'])
     aot = float(args['--aot'])
-    utc_conv =float(args['--utc_conv'])
+    utc_conv = float(args['--utc_conv'])
 
     try:
         type_ = type_list[meas_type]
@@ -140,8 +140,8 @@ def main():
         if filenames is None:
             uawr = u.awr_data(idpr, files)
         else:
-            Edf,Lskyf,Ltf = [os.path.join(idir,f) for f in filenames.split(' ')]
-            print('process files Ed: '+ Edf+', Lsky: '+Lskyf+', Lt: '+Ltf )
+            Edf, Lskyf, Ltf = [os.path.join(idir, f) for f in filenames.split(' ')]
+            print('process files Ed: ' + Edf + ', Lsky: ' + Lskyf + ', Lt: ' + Ltf)
             uawr = u.awr_data(idpr, Edf=Edf, Lskyf=Lskyf, Ltf=Ltf)
 
         try:
@@ -164,7 +164,7 @@ def main():
             awr = awr_process(df, wl, name, idpr)
             Rrs = awr.call_process(method, ofile, vza=vza, azi=azi, ws=ws, aot=aot, plot_file=figfile)
         except:
-            raise('Problem for: '+ ofile)
+            raise ('Problem for: ' + ofile)
 
     elif meas_type == 'iwr':
         # -----------------------------------------------
