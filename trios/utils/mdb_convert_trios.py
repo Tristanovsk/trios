@@ -6,9 +6,9 @@ import datetime as dt
 import glob
 from scipy.interpolate import interp1d
 
-from trios.config import *
+#from trios.config import *
 
-wl = wl_common
+#wl = wl_common
 
 opj = os.path.join
 

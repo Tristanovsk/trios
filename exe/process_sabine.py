@@ -128,9 +128,9 @@ for group, df_ in dff.groupby(groupname):
         if method == 'osoaa':
             rho = awr.get_rho_values(np.median(sza), vza, azi, wl=wl, ws=ws, aot=aot)
         elif method == 'M99':
-            rho = awr.get_rho_mobley(awr.rhoM1999, [np.median(sza)], [vza], [azi], [ws])
+            rho = awr.get_rho_mobley([np.median(sza)], [vza], [azi], [ws],method=method)
         elif method == 'M15':
-            rho = awr.get_rho_mobley(awr.rhoM2015, [np.median(sza)], [vza], [azi], [ws])
+            rho = awr.get_rho_mobley([np.median(sza)], [vza], [azi], [ws],method=method)
         else:
             return print('ERROR: no method for rho factor')
 
@@ -145,7 +145,7 @@ for group, df_ in dff.groupby(groupname):
         Lt, Lsky, Ed = meas
         ws = x
 
-        rho = awr.get_rho_mobley(awr.rhoM1999, [sza], [vza], [azi], [ws])
+        rho = awr.get_rho_mobley( [sza], [vza], [azi], [ws],method='M99')
 
         Rrs = (Lt - rho * Lsky) / Ed
 

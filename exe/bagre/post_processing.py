@@ -7,8 +7,16 @@ import io
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+plt.rcParams.update({'font.family': 'Times New Roman',
+                     'font.size': 18, 'axes.labelsize': 20,
+                     })
+rc = {"font.family": "serif",
+      "mathtext.fontset": "stix"}
+plt.rcParams.update(rc)
+plt.rcParams["font.serif"] = ["Times New Roman"] + plt.rcParams["font.serif"]
 plt.ioff()
-plt.rcParams.update({'font.size': 16})
+
 
 plot = False
 
@@ -99,15 +107,15 @@ for file in files:
     _mean = df[var].mean(axis=1)
     _qmax = df[var].mean(axis=1).quantile(.68)
     _qmin = df[var].mean(axis=1).quantile(0.05)
-    #(df[var] > qmin) & (df[var] < qmax)
+    # (df[var] > qmin) & (df[var] < qmax)
     dffiltered = df[(_mean > _qmin) & (_mean < _qmax)]
     var_std = dffiltered[var].std()
     var_mean = dffiltered[var].mean()
-    _df =  dffiltered.mean()
-    _df['date']=dffiltered.date.mean()
+    _df = dffiltered.mean()
+    _df['date'] = dffiltered.date.mean()
     _df['ID'] = ID
-    var_std = pd.concat([var_std],keys=['Rrs_std'])
-    outputs=outputs.append(_df.append(var_std).T,ignore_index=True)
+    var_std = pd.concat([var_std], keys=['Rrs_std'])
+    outputs = outputs.append(_df.append(var_std).T, ignore_index=True)
 
     # ---------------------------------
     # Plotting section
@@ -179,8 +187,7 @@ for file in files:
         fig.savefig(opj(figdir, basename.split('.')[0] + '_inwater_BRDF_impact.png'), dpi=200)
         plt.close(fig)
 
-
-        ax1.plot(wl, var_mean, '-', color=cmap1(norm1(color)),lw=1.5,label=basename.split('_')[2])
+        ax1.plot(wl, var_mean, '-', color=cmap1(norm1(color)), lw=1.5, label=basename.split('_')[2])
 #
 # plt.legend()
 # divider = make_axes_locatable(ax1)
@@ -193,10 +200,104 @@ for file in files:
 # reformat and save QC data
 # -------------------------
 
-outputs.columns=pd.MultiIndex.from_tuples(outputs.columns,names=['param','wl'])
+outputs.columns = pd.MultiIndex.from_tuples(outputs.columns, names=['param', 'wl'])
 for i, columns_old in enumerate(outputs.columns.levels):
     columns_new = np.where(columns_old.str.contains('Unnamed'), '', columns_old)
     outputs.rename(columns=dict(zip(columns_old, columns_new)), level=i, inplace=True)
-outputs = outputs.set_index(['ID','date','lon','lat'])
-outputs = outputs.drop_duplicates().dropna(axis=1,how='all')
-outputs.to_csv(opj(dirdata,'L2','QC_trios_Rrs.csv'))
+outputs = outputs.set_index(['ID', 'date', 'lon', 'lat'])
+outputs = outputs.drop_duplicates().dropna(axis=1, how='all')
+outputs.to_csv(opj(dirdata, 'L2', 'QC_trios_Rrs.csv'))
+
+# ---------------------------------
+# Plot all in one
+# ---------------------------------
+
+#reorder files by station ID
+fs = pd.DataFrame(files,columns=['path'])
+fs['basename'] = pd.DataFrame(fs['path'].str.split('/').array)[7]
+fs['ID'] = pd.DataFrame(fs['basename'].str.split('_').array)[2]
+fs['date'] = pd.DataFrame(fs['basename'].str.split('_').array)[7]
+fs = fs.sort_values('ID').reset_index(drop=True)
+
+# remove station without PSD meas.
+fs_ = fs.drop(index=[11,13,14,15,17,19,20,23,24,28,29]).reset_index(drop=True)
+
+cmap = plt.cm.Spectral_r
+nrows,ncols=5,4
+fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(18, 18),sharex=True,sharey=True)
+fig.subplots_adjust(bottom=0.1, top=0.95, left=0.07, right=0.95,
+                    hspace=0.2, wspace=0.175)
+for irow in range(nrows):
+    axs[irow,0].set_ylabel(r'$R_{rs}\  (sr^{-1})$')
+for icol in range(ncols):
+    axs[-1,icol].set_xlabel(r'Wavelength (nm)')
+axs[-2,-1].set_xlabel(r'Wavelength (nm)')
+axs = axs.ravel()
+
+for istation, f in fs_.iterrows():#enumerate(files):
+    file=f.path
+    print(istation,f.ID)
+    ax = axs[istation]
+    ax.minorticks_on()
+    # test
+    basename = f.basename
+
+    title=f.ID+', '+f.date
+    df = pd.read_csv(file, header=[0, 1], index_col=0, parse_dates=True)
+    df.reset_index(inplace=True)
+    var_median = df[var].median()
+    qmax = df[var].quantile(.68)
+    qmin = df[var].quantile(0.05)
+    _mean = df[var].mean(axis=1)
+    _qmax = df[var].mean(axis=1).quantile(.68)
+    _qmin = df[var].mean(axis=1).quantile(0.05)
+    # (df[var] > qmin) & (df[var] < qmax)
+    dffiltered = df[(_mean > _qmin) & (_mean < _qmax)]
+    var_std = dffiltered[var].std()
+    var_mean = dffiltered[var].mean()
+    _df = dffiltered.mean()
+    _df['date'] = dffiltered.date.mean()
+    _df['ID'] = ID
+    var_std = pd.concat([var_std], keys=['Rrs_std'])
+    outputs = outputs.append(_df.append(var_std).T, ignore_index=True)
+
+    scat = df.droplevel(1, 1).apply(lambda x: scat_angle(x.sza, 40, x.azi), axis=1)
+    sza, azi = df.sza, df.azi
+
+    decimal = 3
+    param = 'sza'
+    cmin, cmax = (df[param].min() * 0.98).round(decimal), (df[param].max() * 1.02).round(decimal)
+    wl = df[var].columns.astype('float')
+    norm = mpl.colors.Normalize(vmin=cmin, vmax=cmax)
+    sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+
+    for i, group in df.iterrows():
+        y = group[var].values
+        if isinstance(param, str):
+            color = group[param].values[0]
+            stitle = param
+        else:
+            color = group[param]
+            stitle = '_'.join(param)
+
+        ax.plot(wl, y, color=cmap(norm(color)), lw=1.5, alpha=0.75)
+    ax.plot(wl, qmin, ':k', lw=1.5)
+    ax.plot(wl, var_median, '--k', lw=1.5)
+    ax.plot(wl, var_mean, '-r', lw=1.5)
+    ax.plot(wl, qmax, ':k', lw=1.5)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    cbar = fig.colorbar(sm, cax=cax, format=mpl.ticker.ScalarFormatter(),
+                        shrink=1.0, fraction=0.1, pad=0)
+
+
+    ax.set_title(title,fontsize=15)
+ax.set_ylim([0,0.09])
+axs[-1].set_axis_off()
+
+fig.savefig(opj(figdir, 'Rrs_allinone.png'), dpi=200)
+
+plt.close(fig)
+
+#

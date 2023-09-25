@@ -5,7 +5,7 @@ import xarray as xr
 import glob
 import io
 import matplotlib as mpl
-import matplotlib.pyplot as plt
+jimport matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 plt.rcParams.update({'font.size': 16})

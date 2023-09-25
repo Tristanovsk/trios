@@ -98,20 +98,26 @@ class awr_process:
 
         return rho.interp(sza = sza, wl=wl).squeeze().T.values
 
-    def get_rho_mobley(self, rhodf, sza, vza, azi, ws):
+    def get_rho_mobley(self, sza, vza, azi, ws,method='M99'):
         '''
         Get the Mobley rho factor from cubic interpolation in the tabulated values
 
-        :param rhodf:
+
         :param sza:
         :param vza:
         :param azi:
         :param ws:
+        :param method: LUT
         :return:
         '''
         # Warning SZA set to 90 if Sun below the horizon
         # sza[sza>90]=90
-
+        if method == 'M99':
+            rhodf = self.rhoM1999
+        elif method == 'M15':
+            rhodf = self.rhoM2015
+        else:
+            return print('Requested method does not exists, please try again!' )
         rhodf = rhodf.query('sza<75 & vza >0')
         rhodf.index = rhodf.index.remove_unused_levels()
 
@@ -305,9 +311,9 @@ class awr_process:
         if method == 'osoaa':
             rho = self.get_rho_values(sza, vza, azi, wl=wl, ws=ws, aot=aot)
         elif method == 'M99':
-            rho = self.get_rho_mobley(self.rhoM1999, [np.median(sza)], [vza], [azi], [ws])
+            rho = self.get_rho_mobley( [np.median(sza)], [vza], [azi], [ws],method=method)
         elif method == 'M15':
-            rho = self.get_rho_mobley(self.rhoM2015, [np.median(sza)], [vza], [azi], [ws])
+            rho = self.get_rho_mobley( [np.median(sza)], [vza], [azi], [ws],method=method)
         else:
             return print('ERROR: no method for rho factor')
         print('rhoooooooooooo',rho.shape,Lsky.shape)
@@ -321,7 +327,7 @@ class awr_process:
         Lt, Lsky, Ed = meas
         ws = x
 
-        rho = self.get_rho_mobley(self.rhoM1999, [sza], [vza], [azi], [ws])
+        rho = self.get_rho_mobley([sza], [vza], [azi], [ws],method='M99')
 
         Rrs = (Lt - rho * Lsky) / Ed
 
